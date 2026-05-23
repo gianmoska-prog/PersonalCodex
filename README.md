@@ -1,5 +1,11 @@
-# Personal Codex — Patch 43 Auth & Sync Stability
+# Package Audit — Patch 43
 
-Upload the contents of this folder to the GitHub Pages repository root.
+Runtime references traced.
+No missing local referenced assets found.
+Inline JavaScript syntax checked.
+Service worker syntax checked.
+Manifest JSON checked.
+CSS brace integrity checked.
+ZIP integrity checked.
 
-Patch 43 keeps Patch 41 as the stable baseline and adds safer Firebase sync-loop prevention plus auth/listener timeouts. Passwords are not stored or embedded.
+Firebase login was not live-tested because private passwords should not be embedded in the app.

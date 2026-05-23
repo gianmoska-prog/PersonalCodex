@@ -1,0 +1,418 @@
+diff -ruN '--exclude=assets' '--exclude=*.diff' '--exclude=PACKAGE_AUDIT.md' /mnt/data/personal_codex_patch_35_firebase_pwa_package/README.md /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/README.md
+--- /mnt/data/personal_codex_patch_35_firebase_pwa_package/README.md	2026-05-23 21:16:46.750975666 +0000
++++ /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/README.md	2026-05-23 21:31:55.187202595 +0000
+@@ -1,4 +1,4 @@
+-# Personal Codex — Patch 35 Firebase PWA Package
++# Personal Codex — Patch 36 Automatic Firebase PWA Package
+ 
+ Upload the contents of this folder to the root of the GitHub Pages repository.
+ 
+@@ -9,14 +9,20 @@
+ - Database rules: authenticated user can read/write only /users/{uid}
+ 
+ Files:
+-- index.html — app shell with Firebase sync patch
++- index.html — app shell with automatic Firebase Realtime Database sync
+ - manifest.webmanifest — install metadata
+ - sw.js — offline static-shell cache
+ - assets/icons/*.png — PWA icons
++- personal_codex_patch_36_auto_sync.diff — code-level diff from Patch 35
++- PACKAGE_AUDIT.md — runtime-file and syntax audit
+ 
+-After upload:
++Daily behaviour after upload:
+ 1. Open the GitHub Pages URL over HTTPS.
+-2. Click SYNC: LOCAL in the header.
+-3. Sign in with the Firebase user you created.
+-4. On the first device with your real local Codex data, use Upload Local if the cloud is empty.
+-5. On additional devices, sign in and Pull Cloud if required.
++2. Sign in once on each device using the SYNC button if the saved Firebase session is not already active.
++3. After that, the app reconnects automatically on open.
++4. Local data appears instantly from localStorage, then the newest cloud Codex replaces it silently when Firebase responds.
++5. Normal edits auto-save to Firebase after a short debounce; manual Upload/Pull controls are recovery-only.
++
++First cloud authority:
++- If the cloud database is empty, the first device with meaningful local Codex data will create the cloud copy automatically.
++- If the cloud already contains data, cloud becomes the normal authority on app open.
+diff -ruN '--exclude=assets' '--exclude=*.diff' '--exclude=PACKAGE_AUDIT.md' /mnt/data/personal_codex_patch_35_firebase_pwa_package/index.html /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/index.html
+--- /mnt/data/personal_codex_patch_35_firebase_pwa_package/index.html	2026-05-23 21:17:49.055214500 +0000
++++ /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/index.html	2026-05-23 21:31:36.104975858 +0000
+@@ -5125,7 +5125,7 @@
+     }
+ 
+ 
+-    /* PATCH 35 — Firebase sync and final PWA package */
++    /* PATCH 36 — automatic Firebase sync and final PWA package */
+     .sync-panel { max-width: min(760px, calc(100vw - 28px)); }
+     .sync-status-card {
+       border: 1px solid var(--ivory-border);
+@@ -5178,7 +5178,8 @@
+     .btn-hud.sync-state-synced { border-color: rgba(143, 184, 147, .36); color: rgba(216, 232, 218, .92); }
+     .btn-hud.sync-state-syncing { border-color: rgba(159, 183, 223, .40); color: rgba(217, 228, 249, .92); }
+     .btn-hud.sync-state-error,
+-    .btn-hud.sync-state-offline { border-color: rgba(180, 90, 90, .48); color: rgba(238, 190, 186, .94); }
++    .btn-hud.sync-state-offline,
++    .btn-hud.sync-state-conflict { border-color: rgba(180, 90, 90, .48); color: rgba(238, 190, 186, .94); }
+     @media (max-width: 720px) {
+       .sync-form { grid-template-columns: 1fr; }
+       .sync-actions { grid-template-columns: 1fr; }
+@@ -5208,7 +5209,7 @@
+       <button class="btn-hud" id="btn-paste" type="button">PASTE</button>
+       <label class="btn-hud import-label" for="import-file">IMPORT</label>
+       <button class="btn-hud" id="btn-history" type="button">HISTORY</button>
+-      <button class="btn-hud" id="btn-sync" type="button">SYNC: LOCAL</button>
++      <button class="btn-hud" id="btn-sync" type="button" title="Automatic Firebase sync status">SYNC: LOCAL</button>
+       <button class="btn-hud pwa-install-btn" id="btn-pwa-install" type="button" hidden>INSTALL</button>
+       <button class="btn-hud subtle health-glyph" id="btn-health" type="button" aria-label="Open Codex Health" title="Codex Health">◌</button>
+       <input id="import-file" type="file" accept="application/json,.json,.txt,.md,text/plain,text/markdown" hidden />
+@@ -5228,7 +5229,7 @@
+         <button type="button" data-mobile-action="import">Import File</button>
+         <button type="button" data-mobile-action="history">History</button>
+         <button type="button" data-mobile-action="health">Codex Health</button>
+-        <button type="button" data-mobile-action="sync">Sync</button>
++        <button type="button" data-mobile-action="sync">Sync Status</button>
+         <button type="button" data-mobile-action="install">Install</button>
+       </div>
+       <button class="mobile-actions-close" id="mobile-actions-close" type="button" data-close-mobile-actions>Close</button>
+@@ -5241,8 +5242,8 @@
+       <div class="import-review-header">
+         <div>
+           <div class="panel-kicker">Realtime Archive</div>
+-          <h2 class="import-review-title" id="sync-title">Firebase Sync</h2>
+-          <p class="import-review-subtitle" id="sync-subtitle">Sign in to keep the Personal Codex updated across phone and computer.</p>
++          <h2 class="import-review-title" id="sync-title">Automatic Firebase Sync</h2>
++          <p class="import-review-subtitle" id="sync-subtitle">Once signed in, the Codex syncs silently across desktop and mobile. Manual controls are kept only for recovery.</p>
+         </div>
+         <button class="panel-close" type="button" data-sync-action="close" aria-label="Close sync panel">×</button>
+       </div>
+@@ -5264,13 +5265,13 @@
+       </div>
+ 
+       <div class="import-review-actions sync-actions">
+-        <button class="composer-action" type="button" data-sync-action="pull">Pull Cloud</button>
+-        <button class="composer-action" type="button" data-sync-action="upload">Upload Local</button>
++        <button class="composer-action" type="button" data-sync-action="pull">Recovery: Pull Cloud</button>
++        <button class="composer-action" type="button" data-sync-action="upload">Recovery: Upload Local</button>
+         <button class="composer-action" type="button" data-sync-action="signout">Sign Out</button>
+         <button class="composer-action primary" type="button" data-sync-action="signin">Sign In</button>
+       </div>
+ 
+-      <p class="import-review-note">Cloud data is stored under your authenticated Firebase user path. Local storage remains as the emergency offline copy.</p>
++      <p class="import-review-note">Normal use is automatic: open the app, let the saved login reconnect, and the newest cloud state will apply silently. Use recovery buttons only if a device has clearly fallen out of sync.</p>
+     </div>
+   </section>
+ 
+@@ -5725,7 +5726,7 @@
+           autoBackupBeforeImportAt: null,
+           lastImportedSchemaVersion: null,
+           schemaNotes: {
+-          patch35FirebasePwaPackage: 'Patch 35 adds Firebase Realtime Database sync readiness, a guarded sign-in flow, realtime cloud save/pull behaviour, and the final GitHub Pages PWA package with manifest.webmanifest and sw.js.',
++          patch36AutomaticFirebaseSync: 'Patch 36 makes Firebase Realtime Database the automatic cloud authority after first sign-in, keeps localStorage as an offline cache, debounces cloud writes, receives live remote updates on open, and reserves manual upload/pull for recovery only.',
+           patch33RecentFocus: 'Patch 33 adds recentFocus, currentDay, _analysis_priority, and _retention_protocol so GPT primarily interprets the last 30 days and consults older material only when necessary.',
+           patch30GptProtocol: 'Patch 30 adds the root-level _gpt_protocol contract so every exported or imported Codex JSON instructs GPT to return a fresh Current Situation after each update.',
+           patch29QuickActions: 'Patch 29 added a lightning Quick Actions batch logger: selectable recurring evidence presets, non-repeatable daily lockout, confirmation before apply, and quickActionId metadata on generated entries.',
+@@ -5827,6 +5828,7 @@
+       let selectedQuickActionIds = new Set();
+       let saveTimer = null;
+       let syncSaveTimer = null;
++      let pendingCloudSave = false;
+       let firebaseModules = null;
+       let firebaseApp = null;
+       let firebaseAuth = null;
+@@ -6376,13 +6378,25 @@
+         };
+       }
+ 
+-      function saveData() {
++      function saveData(options = {}) {
++        const { markDirty = true, queueCloud = true } = options || {};
+         try {
+           enforceGptProtocol(state);
+           state.updatedAt = new Date().toISOString();
++          if (markDirty && !isApplyingRemoteState) {
++            state._sync = {
++              ...normalizeSync(state._sync || {}),
++              status: 'pending',
++              deviceId,
++              lastWriterDeviceId: deviceId,
++              updatedAt: state.updatedAt,
++              path: syncUser ? cloudPathForUser(syncUser) : (state._sync?.path || null)
++            };
++            pendingCloudSave = true;
++          }
+           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+           $('#json-status').textContent = 'AUTO';
+-          queueCloudSave();
++          if (queueCloud) queueCloudSave();
+         } catch (err) {
+           console.warn('Personal Codex: failed to save local data.', err);
+           $('#json-status').textContent = 'FAIL';
+@@ -6407,22 +6421,24 @@
+         const clean = String(label || 'LOCAL').toUpperCase();
+         if (btnSync) {
+           btnSync.textContent = `SYNC: ${clean}`;
+-          btnSync.classList.remove('sync-state-synced', 'sync-state-syncing', 'sync-state-error', 'sync-state-offline');
++          btnSync.classList.remove('sync-state-synced', 'sync-state-syncing', 'sync-state-error', 'sync-state-offline', 'sync-state-conflict');
+           if (clean === 'SYNCED') btnSync.classList.add('sync-state-synced');
+           if (clean === 'SYNCING') btnSync.classList.add('sync-state-syncing');
+           if (clean === 'ERROR') btnSync.classList.add('sync-state-error');
+           if (clean === 'OFFLINE') btnSync.classList.add('sync-state-offline');
++          if (clean === 'CONFLICT') btnSync.classList.add('sync-state-conflict');
+         }
+         if (syncStatusLabel) syncStatusLabel.textContent = clean;
+         if (syncStatusNote) syncStatusNote.textContent = note || defaultSyncNote(clean);
+       }
+ 
+       function defaultSyncNote(label) {
+-        if (label === 'SYNCED') return syncUser?.email ? `Connected as ${syncUser.email}. Cloud and local copies are aligned.` : 'Cloud and local copies are aligned.';
+-        if (label === 'SYNCING') return 'Contacting Firebase and reconciling the local and cloud copies.';
+-        if (label === 'OFFLINE') return 'Firebase is unavailable. The Codex remains usable locally and will sync when reconnected.';
++        if (label === 'SYNCED') return syncUser?.email ? `Connected as ${syncUser.email}. Cloud and local copies are aligned automatically.` : 'Cloud and local copies are aligned automatically.';
++        if (label === 'SYNCING') return 'Contacting Firebase and reconciling local cache with cloud authority.';
++        if (label === 'OFFLINE') return 'Offline. The Codex remains usable locally and will save pending changes when the connection returns.';
++        if (label === 'CONFLICT') return 'Two devices appear to have changed the Codex before syncing. Use recovery controls before overwriting either copy.';
+         if (label === 'ERROR') return 'Sync encountered an error. Local storage remains active.';
+-        return 'Local storage is active. Sign in to enable realtime cloud sync.';
++        return 'Local storage is active. Sign in once on this device to enable automatic sync.';
+       }
+ 
+       async function loadFirebaseSdk() {
+@@ -6435,6 +6451,8 @@
+         ]);
+         firebaseApp = appMod.initializeApp(FIREBASE_CONFIG);
+         firebaseAuth = authMod.getAuth(firebaseApp);
++        try { await authMod.setPersistence(firebaseAuth, authMod.browserLocalPersistence); }
++        catch (error) { console.warn('Personal Codex: could not set Firebase auth persistence.', error); }
+         firebaseDb = dbMod.getDatabase(firebaseApp);
+         firebaseModules = { appMod, authMod, dbMod };
+         firebaseReady = true;
+@@ -6442,7 +6460,7 @@
+       }
+ 
+       async function setupFirebaseSync() {
+-        renderSyncStatus('LOCAL');
++        renderSyncStatus(navigator.onLine ? 'SYNCING' : 'OFFLINE', navigator.onLine ? 'Preparing automatic Firebase sync…' : 'Offline. Local cache is available; cloud sync will resume when connected.');
+         try {
+           const modules = await loadFirebaseSdk();
+           modules.authMod.onAuthStateChanged(firebaseAuth, user => {
+@@ -6477,28 +6495,6 @@
+ 
+       async function startCloudSession(user) {
+         if (!firebaseReady || !firebaseDb || !firebaseModules) await loadFirebaseSdk();
+-        const path = cloudPathForUser(user);
+-        const stateRef = firebaseModules.dbMod.ref(firebaseDb, path);
+-        const snapshot = await firebaseModules.dbMod.get(stateRef);
+-        if (snapshot.exists()) {
+-          const remoteRaw = snapshot.val();
+-          const remoteState = normalizeData(remoteRaw || {});
+-          remoteState._sync = normalizeSync(remoteRaw?._sync || {});
+-          const useRemote = shouldPreferRemote(remoteState);
+-          if (useRemote) {
+-            applyRemoteState(remoteState, 'Cloud state loaded.');
+-          } else if (hasMeaningfulLocalData() && window.confirm('This device has local Codex data that appears newer than the cloud copy. Press OK to upload this device to Firebase, or Cancel to pull the cloud copy.')) {
+-            await forceUploadLocal('Local device uploaded to Firebase.');
+-          } else {
+-            applyRemoteState(remoteState, 'Cloud state loaded by choice.');
+-          }
+-        } else {
+-          if (hasMeaningfulLocalData() && window.confirm('No cloud Codex exists yet. Press OK to upload this device as the first cloud authority, or Cancel to keep Firebase empty for now.')) {
+-            await forceUploadLocal('Initial cloud Codex created from this device.');
+-          } else {
+-            renderSyncStatus('SYNCED', 'Firebase is connected, but no cloud Codex exists yet. Use Upload Local on the device holding the correct data.');
+-          }
+-        }
+         attachCloudListener(user);
+       }
+ 
+@@ -6506,26 +6502,78 @@
+         detachCloudListener();
+         const path = cloudPathForUser(user);
+         const stateRef = firebaseModules.dbMod.ref(firebaseDb, path);
++        let receivedInitialSnapshot = false;
+         syncUnsubscribe = firebaseModules.dbMod.onValue(stateRef, snapshot => {
+-          if (!snapshot.exists()) return;
++          const isInitialSnapshot = !receivedInitialSnapshot;
++          receivedInitialSnapshot = true;
++
++          if (!snapshot.exists()) {
++            if (hasMeaningfulLocalData()) {
++              forceUploadLocal('Initial cloud Codex created automatically from this device.').catch(error => {
++                console.warn('Personal Codex: initial cloud upload failed.', error);
++                renderSyncStatus('ERROR', error?.message || 'Initial cloud upload failed.');
++              });
++            } else {
++              renderSyncStatus('SYNCED', 'Signed in. Cloud is empty and ready for the first Codex entry.');
++            }
++            return;
++          }
++
+           const incomingRaw = snapshot.val();
+           const incoming = normalizeData(incomingRaw || {});
+           incoming._sync = normalizeSync(incomingRaw?._sync || {});
+-          const incomingRevision = Number(incoming._sync?.revision || 0);
+-          const localRevision = Number(state._sync?.revision || 0);
+-          if (incoming._sync?.lastWriterDeviceId === deviceId && incomingRevision <= localRevision) {
+-            renderSyncStatus('SYNCED');
+-            return;
+-          }
+-          if (incomingRevision > localRevision || shouldPreferRemote(incoming)) {
+-            applyRemoteState(incoming, 'Cloud update received.');
+-          }
++          reconcileCloudSnapshot(incoming, isInitialSnapshot);
+         }, error => {
+           console.warn('Personal Codex: cloud listener failed.', error);
+           renderSyncStatus('ERROR', error?.message || 'Realtime listener failed.');
+         });
+       }
+ 
++      function hasPendingLocalChanges() {
++        return pendingCloudSave || state?._sync?.status === 'pending';
++      }
++
++      function cloudRevisions(candidate = state) {
++        return {
++          remote: Number(candidate?._sync?.revision || 0),
++          local: Number(state?._sync?.revision || 0),
++          remoteTime: Date.parse(candidate?._sync?.updatedAt || candidate?.updatedAt || '') || 0,
++          localTime: Date.parse(state?._sync?.updatedAt || state?.updatedAt || '') || 0
++        };
++      }
++
++      function reconcileCloudSnapshot(incoming, isInitialSnapshot = false) {
++        const incomingRevision = Number(incoming._sync?.revision || 0);
++        const localRevision = Number(state._sync?.revision || 0);
++        const incomingFromThisDevice = incoming._sync?.lastWriterDeviceId === deviceId;
++
++        if (incomingFromThisDevice && incomingRevision >= localRevision && !hasPendingLocalChanges()) {
++          lastRemoteRevision = Math.max(lastRemoteRevision, incomingRevision);
++          renderSyncStatus('SYNCED');
++          return;
++        }
++
++        if (hasPendingLocalChanges()) {
++          if (incomingRevision <= localRevision || incomingFromThisDevice) {
++            forceUploadLocal('Pending local changes saved to cloud.').catch(error => {
++              console.warn('Personal Codex: pending cloud upload failed.', error);
++              renderSyncStatus(navigator.onLine ? 'ERROR' : 'OFFLINE', navigator.onLine ? (error?.message || 'Pending cloud save failed.') : 'Offline. Pending changes remain local.');
++            });
++            return;
++          }
++          renderSyncStatus('CONFLICT', 'Cloud changed while this device also has unsaved local changes. Use recovery controls before overwriting either copy.');
++          showToast('SYNC CONFLICT');
++          return;
++        }
++
++        if (isInitialSnapshot || shouldPreferRemote(incoming)) {
++          applyRemoteState(incoming, isInitialSnapshot ? 'Latest cloud Codex loaded automatically.' : 'Cloud update received automatically.');
++          return;
++        }
++
++        renderSyncStatus('SYNCED');
++      }
++
+       function hasMeaningfulLocalData(candidate = state) {
+         try {
+           const zones = candidate?.zones || {};
+@@ -6545,11 +6593,9 @@
+ 
+       function shouldPreferRemote(remoteState) {
+         if (!hasMeaningfulLocalData(state)) return true;
+-        const remoteRevision = Number(remoteState?._sync?.revision || 0);
+-        const localRevision = Number(state?._sync?.revision || 0);
+-        if (remoteRevision > localRevision) return true;
+-        const remoteTime = Date.parse(remoteState?._sync?.updatedAt || remoteState?.updatedAt || '') || 0;
+-        const localTime = Date.parse(state?._sync?.updatedAt || state?.updatedAt || '') || 0;
++        if (hasPendingLocalChanges()) return false;
++        const { remote: remoteRevision, local: localRevision, remoteTime, localTime } = cloudRevisions(remoteState);
++        if (remoteRevision >= localRevision) return true;
+         return remoteTime > localTime + 1500;
+       }
+ 
+@@ -6562,6 +6608,8 @@
+           state._sync.deviceId = deviceId;
+           state._sync.lastPulledAt = new Date().toISOString();
+           lastRemoteRevision = Number(state._sync.revision || 0);
++          pendingCloudSave = false;
++          window.clearTimeout(syncSaveTimer);
+           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+           renderAllStats(false);
+           renderHomePanel();
+@@ -6579,10 +6627,16 @@
+       }
+ 
+       function queueCloudSave() {
+-        if (isApplyingRemoteState || !syncUser || !firebaseReady || !firebaseDb || !firebaseModules) return;
++        if (isApplyingRemoteState) return;
++        if (!pendingCloudSave && state?._sync?.status !== 'pending') return;
++        if (!syncUser || !firebaseReady || !firebaseDb || !firebaseModules) return;
++        if (!navigator.onLine) {
++          renderSyncStatus('OFFLINE', 'Offline. Changes are cached locally and will sync automatically when connection returns.');
++          return;
++        }
+         window.clearTimeout(syncSaveTimer);
+         syncSaveTimer = window.setTimeout(() => {
+-          forceUploadLocal('Cloud save completed.').catch(error => {
++          forceUploadLocal('Cloud save completed automatically.').catch(error => {
+             console.warn('Personal Codex: cloud save failed.', error);
+             renderSyncStatus(navigator.onLine ? 'ERROR' : 'OFFLINE', navigator.onLine ? (error?.message || 'Cloud save failed.') : 'Offline. Changes remain local and will be saved later.');
+           });
+@@ -6616,6 +6670,8 @@
+         state._sync = payload._sync;
+         state.updatedAt = now;
+         lastRemoteRevision = nextRevision;
++        pendingCloudSave = false;
++        window.clearTimeout(syncSaveTimer);
+         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+         renderSyncStatus('SYNCED', note);
+       }
+@@ -6632,6 +6688,15 @@
+         applyRemoteState(remoteState, 'Cloud copy pulled manually.');
+       }
+ 
++      function handleOnlineStateChange() {
++        if (navigator.onLine) {
++          if (syncUser && hasPendingLocalChanges()) queueCloudSave();
++          else if (syncUser) renderSyncStatus('SYNCED');
++          return;
++        }
++        renderSyncStatus('OFFLINE');
++      }
++
+       function openSyncOverlay() {
+         if (!syncOverlay) return;
+         if (syncEmailInput && syncUser?.email) syncEmailInput.value = syncUser.email;
+@@ -6655,6 +6720,7 @@
+           renderSyncStatus('SYNCING', 'Signing in…');
+           await modules.authMod.signInWithEmailAndPassword(firebaseAuth, email, password);
+           if (syncPasswordInput) syncPasswordInput.value = '';
++          closeSyncOverlay();
+         } catch (error) {
+           console.warn('Personal Codex: sign-in failed.', error);
+           renderSyncStatus('ERROR', error?.message || 'Sign-in failed.');
+@@ -8675,6 +8741,8 @@
+         $('#btn-paste').addEventListener('click', pasteData);
+         $('#btn-history').addEventListener('click', openHistorySection);
+         btnSync?.addEventListener('click', openSyncOverlay);
++        window.addEventListener('online', handleOnlineStateChange);
++        window.addEventListener('offline', handleOnlineStateChange);
+         syncOverlay?.addEventListener('click', event => {
+           const action = event.target?.dataset?.syncAction;
+           if (action) handleSyncAction(action);
+@@ -8775,7 +8843,7 @@
+         window.visualViewport?.addEventListener('resize', setMobileViewportVars, { passive: true });
+         window.visualViewport?.addEventListener('scroll', setMobileViewportVars, { passive: true });
+         updateTodayLog();
+-        saveData();
++        saveData({ markDirty: false, queueCloud: false });
+         renderAllStats(false);
+         renderHomePanel();
+         setComposerZone('head');
+diff -ruN '--exclude=assets' '--exclude=*.diff' '--exclude=PACKAGE_AUDIT.md' /mnt/data/personal_codex_patch_35_firebase_pwa_package/sw.js /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/sw.js
+--- /mnt/data/personal_codex_patch_35_firebase_pwa_package/sw.js	2026-05-23 21:16:46.598889023 +0000
++++ /mnt/data/personal_codex_patch_36_auto_sync_pwa_package/sw.js	2026-05-23 21:31:55.187925016 +0000
+@@ -1,4 +1,4 @@
+-const CACHE_NAME = 'personal-codex-pwa-v35';
++const CACHE_NAME = 'personal-codex-pwa-v36';
+ const APP_SHELL = [
+   './',
+   './index.html',

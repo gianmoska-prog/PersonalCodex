@@ -3783,6 +3783,14 @@
         document.body.classList.toggle('effects-paused', paused);
       }
 
+      function isMobileInputTarget(target) {
+        return Boolean(target && target.matches?.('input:not([readonly]), textarea:not([readonly]), select, [contenteditable="true"]'));
+      }
+
+      function hasMobileTouchContext() {
+        return window.matchMedia('(max-width: 760px)').matches && (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+      }
+
       function setMobileViewportVars() {
         const height = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
         if (height) document.documentElement.style.setProperty('--vvh', `${height}px`);
@@ -3792,9 +3800,49 @@
         const isCompact = window.matchMedia('(max-width: 760px)').matches;
         const hasTouchIntent = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
         const active = document.activeElement;
-        const editingField = Boolean(active && active.matches?.('input, textarea, select, [contenteditable="true"]'));
+        const editingField = isMobileInputTarget(active);
+        const forcedKeyboardMode = document.body.classList.contains('keyboard-forced');
+        const viewportShrunk = Boolean(height && layoutHeight && height < layoutHeight * 0.88);
+        const keyboardLikelyOpen = isCompact && hasTouchIntent && editingField && (forcedKeyboardMode || keyboardOffset > 50 || viewportShrunk);
         document.body.classList.toggle('is-mobile-layout', isCompact);
-        document.body.classList.toggle('keyboard-open', isCompact && hasTouchIntent && editingField && keyboardOffset > 90);
+        document.body.classList.toggle('keyboard-open', keyboardLikelyOpen);
+      }
+
+      function bindMobileKeyboardFocus() {
+        const editableSelector = 'input:not([readonly]), textarea:not([readonly]), select, [contenteditable="true"]';
+        const scrollFocusedControlIntoView = target => {
+          if (!target || !target.isConnected || !hasMobileTouchContext()) return;
+          const panel = target.closest?.('.composer-panel, .detail-panel, .manual-paste-panel, .import-review-panel, .sync-panel');
+          try {
+            target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+            if (panel) {
+              window.setTimeout(() => {
+                const fieldRect = target.getBoundingClientRect();
+                const panelRect = panel.getBoundingClientRect();
+                if (fieldRect.bottom > panelRect.bottom - 118 || fieldRect.top < panelRect.top + 92) {
+                  target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+                }
+              }, 90);
+            }
+          } catch {}
+        };
+
+        document.addEventListener('focusin', event => {
+          const target = event.target;
+          if (!target?.matches?.(editableSelector) || !hasMobileTouchContext()) return;
+          document.body.classList.add('keyboard-forced');
+          setMobileViewportVars();
+          [80, 280, 560].forEach(delay => window.setTimeout(() => scrollFocusedControlIntoView(target), delay));
+        }, true);
+
+        document.addEventListener('focusout', () => {
+          window.setTimeout(() => {
+            const active = document.activeElement;
+            const stillEditing = isMobileInputTarget(active) && hasMobileTouchContext();
+            if (!stillEditing) document.body.classList.remove('keyboard-forced');
+            setMobileViewportVars();
+          }, 180);
+        }, true);
       }
 
       function updateHUDDate() {
@@ -4281,6 +4329,7 @@
 
       function init() {
         setMobileViewportVars();
+        bindMobileKeyboardFocus();
         window.addEventListener('resize', () => { setMobileViewportVars(); updateHUDDate(); fitVerdictValue(); }, { passive: true });
         window.visualViewport?.addEventListener('resize', setMobileViewportVars, { passive: true });
         window.visualViewport?.addEventListener('scroll', setMobileViewportVars, { passive: true });

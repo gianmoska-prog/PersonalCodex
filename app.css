@@ -5944,3 +5944,201 @@
     min-height: 44px;
   }
 }
+
+
+/* Patch 45 — mobile keyboard ergonomics and always-visible sync status */
+@media (max-width: 760px) {
+  .hud-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hud-actions > .sync-dot {
+    display: inline-block !important;
+    order: -1;
+    width: 10px;
+    height: 10px;
+    margin-right: 2px;
+    opacity: .96;
+  }
+
+  .hud-actions > .sync-dot::before {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    border-radius: 999px;
+  }
+
+  body.keyboard-open {
+    overflow: hidden;
+  }
+
+  body.keyboard-open .entry-composer,
+  body.keyboard-open .entry-detail,
+  body.keyboard-open .manual-paste-overlay,
+  body.keyboard-open .import-review-overlay {
+    align-items: stretch !important;
+    place-items: stretch !important;
+    padding: 0 !important;
+  }
+
+  body.keyboard-open .composer-backdrop,
+  body.keyboard-open .detail-backdrop,
+  body.keyboard-open .manual-paste-backdrop,
+  body.keyboard-open .import-review-backdrop {
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+
+  body.keyboard-open .composer-panel,
+  body.keyboard-open .detail-panel,
+  body.keyboard-open .manual-paste-panel,
+  body.keyboard-open .import-review-panel,
+  body.keyboard-open .sync-panel {
+    position: fixed !important;
+    top: max(6px, env(safe-area-inset-top)) !important;
+    right: 0 !important;
+    bottom: calc(var(--keyboard-offset, 0px) + 2px) !important;
+    left: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 16px 16px 0 0 !important;
+    transform: none !important;
+  }
+
+  body.keyboard-open .entry-detail.open .detail-panel {
+    transform: none !important;
+  }
+
+  body.keyboard-open .composer-panel,
+  body.keyboard-open .manual-paste-panel,
+  body.keyboard-open .import-review-panel,
+  body.keyboard-open .sync-panel {
+    padding: 12px 14px 0 !important;
+  }
+
+  body.keyboard-open .detail-panel {
+    padding: 12px 14px 0 !important;
+  }
+
+  body.keyboard-open .composer-panel::before,
+  body.keyboard-open .detail-panel::before,
+  body.keyboard-open .manual-paste-panel::before,
+  body.keyboard-open .import-review-panel::before {
+    margin-bottom: 8px !important;
+  }
+
+  body.keyboard-open .composer-header,
+  body.keyboard-open .detail-header,
+  body.keyboard-open .import-review-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    margin: -12px -14px 10px;
+    padding: 12px 14px 10px;
+    background: linear-gradient(180deg, rgba(5, 13, 26, .98), rgba(5, 13, 26, .88));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  body.keyboard-open .composer-title,
+  body.keyboard-open .detail-title,
+  body.keyboard-open .import-review-title,
+  body.keyboard-open .manual-paste-title {
+    font-size: .92rem;
+    letter-spacing: .22em;
+  }
+
+  body.keyboard-open .entry-type-grid {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.keyboard-open .entry-type-card {
+    flex: 0 0 128px !important;
+    min-height: 56px !important;
+    padding: 10px 12px !important;
+    scroll-snap-align: start;
+  }
+
+  body.keyboard-open .entry-type-card span {
+    display: none !important;
+  }
+
+  body.keyboard-open .subsection-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    padding-bottom: 3px;
+    margin-bottom: 10px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.keyboard-open .subsection-pill {
+    flex: 0 0 auto;
+    min-height: 38px;
+  }
+
+  body.keyboard-open .composer-fields,
+  body.keyboard-open .detail-form,
+  body.keyboard-open .sync-form {
+    gap: 9px !important;
+  }
+
+  body.keyboard-open .composer-input,
+  body.keyboard-open .composer-note,
+  body.keyboard-open .detail-input,
+  body.keyboard-open .detail-select,
+  body.keyboard-open .detail-new-note,
+  body.keyboard-open .detail-note-textarea,
+  body.keyboard-open .manual-paste-textarea,
+  body.keyboard-open .sync-input,
+  body.keyboard-open .today-quick-input {
+    scroll-margin-top: 128px;
+    scroll-margin-bottom: 180px;
+  }
+
+  body.keyboard-open .composer-note,
+  body.keyboard-open .detail-new-note {
+    min-height: 76px !important;
+  }
+
+  body.keyboard-open .manual-paste-textarea {
+    min-height: 40vh !important;
+  }
+
+  body.keyboard-open .composer-actions,
+  body.keyboard-open .detail-actions,
+  body.keyboard-open .manual-paste-actions,
+  body.keyboard-open .sync-actions,
+  body.keyboard-open .import-review-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 5;
+    margin-left: -14px !important;
+    margin-right: -14px !important;
+    padding: 12px 14px max(12px, env(safe-area-inset-bottom)) !important;
+    background: linear-gradient(180deg, rgba(5, 13, 26, .10), rgba(5, 13, 26, .96) 35%);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+  }
+
+  body.keyboard-open .mobile-bottom-nav {
+    transform: translateY(120%) !important;
+    pointer-events: none !important;
+  }
+
+  body.keyboard-open .toast {
+    top: calc(env(safe-area-inset-top) + 8px) !important;
+  }
+}

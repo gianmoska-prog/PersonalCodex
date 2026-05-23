@@ -1522,9 +1522,23 @@
         const localRevision = Number(state._sync?.revision || 0);
         const incomingFromThisDevice = incoming._sync?.lastWriterDeviceId === deviceId;
 
-        if (incomingFromThisDevice && incomingRevision >= localRevision && !hasPendingLocalChanges()) {
+        if (incomingFromThisDevice && (cloudUploadInFlight || (incomingRevision >= localRevision && !hasPendingLocalChanges()))) {
           lastRemoteRevision = Math.max(lastRemoteRevision, incomingRevision);
-          renderSyncStatus('SYNCED');
+          if (cloudUploadInFlight && incomingRevision >= cloudUploadRevision) {
+            cloudUploadInFlight = false;
+            cloudUploadRevision = 0;
+            pendingCloudSave = false;
+            window.clearTimeout(syncSaveTimer);
+            state._sync = {
+              ...normalizeSync(state._sync || {}),
+              ...normalizeSync(incoming._sync || {}),
+              status: 'synced',
+              deviceId,
+              path: cloudPathForUser(syncUser)
+            };
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+          }
+          renderSyncStatus('SYNCED', 'Cloud save acknowledged from this device.');
           return;
         }
 
@@ -1641,15 +1655,35 @@
           lastSyncedAt: now,
           path: cloudPathForUser(syncUser)
         };
-        await firebaseModules.dbMod.set(firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(syncUser)), payload);
-        // Only promote the local revision after Firebase confirms the write.
-        state._sync = payload._sync;
-        state.updatedAt = now;
-        lastRemoteRevision = nextRevision;
-        pendingCloudSave = false;
-        window.clearTimeout(syncSaveTimer);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        renderSyncStatus('SYNCED', note);
+        cloudUploadInFlight = true;
+        cloudUploadRevision = nextRevision;
+        try {
+          await firebaseModules.dbMod.set(firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(syncUser)), payload);
+          // Only promote the local revision after Firebase confirms the write.
+          state._sync = payload._sync;
+          state.updatedAt = now;
+          lastRemoteRevision = nextRevision;
+          pendingCloudSave = false;
+          cloudUploadInFlight = false;
+          cloudUploadRevision = 0;
+          window.clearTimeout(syncSaveTimer);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          renderSyncStatus('SYNCED', note);
+        } catch (error) {
+          cloudUploadInFlight = false;
+          cloudUploadRevision = 0;
+          pendingCloudSave = true;
+          state._sync = {
+            ...normalizeSync(state._sync || {}),
+            status: 'pending',
+            deviceId,
+            lastWriterDeviceId: deviceId,
+            updatedAt: now,
+            path: cloudPathForUser(syncUser)
+          };
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+          throw error;
+        }
       }
 
       async function pullCloudNow() {

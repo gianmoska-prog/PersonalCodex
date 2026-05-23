@@ -2,10 +2,10 @@
   "name": "Personal Codex",
   "short_name": "Codex",
   "description": "Private personal evidence ledger and GPT-refined dossier.",
-  "start_url": "./index.html",
+  "start_url": "./?source=pwa",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "natural",
   "background_color": "#050d1a",
   "theme_color": "#050d1a",
   "categories": [
@@ -30,6 +30,34 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Entry",
+      "short_name": "Add",
+      "description": "Open entry composer.",
+      "url": "./?action=compose&source=pwa",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Quick Actions",
+      "short_name": "Quick",
+      "description": "Open quick action batch logger.",
+      "url": "./?action=quick&source=pwa",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

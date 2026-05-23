@@ -1,28 +1,17 @@
-# Personal Codex — Patch 36 Automatic Firebase PWA Package
+# Personal Codex — Patch 41 Data Integrity
 
-Upload the contents of this folder to the root of the GitHub Pages repository.
+Private Personal Codex PWA package for GitHub Pages.
 
-Required Firebase setup already completed:
-- Firebase project: personal-codex-cd9d4
-- Realtime Database: europe-west1
-- Authentication: Email/Password
-- Database rules: authenticated user can read/write only /users/{uid}
+Upload the contents of this folder to the repository root:
 
-Files:
-- index.html — app shell with automatic Firebase Realtime Database sync
-- manifest.webmanifest — install metadata
-- sw.js — offline static-shell cache
-- assets/icons/*.png — PWA icons
-- personal_codex_patch_36_auto_sync.diff — code-level diff from Patch 35
-- PACKAGE_AUDIT.md — runtime-file and syntax audit
+- index.html
+- app.css
+- manifest.webmanifest
+- sw.js
+- assets/icons/icon-192.png
+- assets/icons/icon-512.png
+- assets/icons/maskable-512.png
 
-Daily behaviour after upload:
-1. Open the GitHub Pages URL over HTTPS.
-2. Sign in once on each device using the SYNC button if the saved Firebase session is not already active.
-3. After that, the app reconnects automatically on open.
-4. Local data appears instantly from localStorage, then the newest cloud Codex replaces it silently when Firebase responds.
-5. Normal edits auto-save to Firebase after a short debounce; manual Upload/Pull controls are recovery-only.
+Patch 41 focuses on data-integrity and safe polish after the Patch 40 audit cycle. It preserves GPT/recent-history fields through normalisation, cloud pull, import merge, and reload flows; hardens Firebase SDK loading against duplicate initialisation; avoids overconfident online reconnection states; makes mobile keyboard detection more conservative; raises Today quick-entry zone tap targets; and bumps the service-worker cache to v41.
 
-First cloud authority:
-- If the cloud database is empty, the first device with meaningful local Codex data will create the cloud copy automatically.
-- If the cloud already contains data, cloud becomes the normal authority on app open.
+After uploading, open the live GitHub Pages URL and refresh once so the new service worker takes control.

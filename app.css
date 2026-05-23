@@ -5860,3 +5860,87 @@
     min-height: 98px;
   }
 }
+
+
+/* Patch 44: copy/paste-only manual paste fallback */
+.manual-paste-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+}
+.manual-paste-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 14, .72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.manual-paste-panel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(82dvh, 720px);
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--ivory-border);
+  background: rgba(5, 13, 26, .96);
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.42);
+}
+.manual-paste-title {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  font-size: .95rem;
+}
+.manual-paste-copy {
+  margin: 0;
+  color: var(--ivory-muted);
+  line-height: 1.38;
+}
+.manual-paste-textarea {
+  width: 100%;
+  min-height: min(42dvh, 340px);
+  resize: vertical;
+  border: 1px solid rgba(245, 240, 232, .14);
+  background: rgba(245, 240, 232, .045);
+  color: var(--ivory-soft);
+  padding: 12px;
+  outline: none;
+  font-family: var(--font-ui);
+  font-size: .82rem;
+  line-height: 1.35;
+}
+.manual-paste-textarea:focus {
+  border-color: rgba(200, 184, 154, .48);
+  box-shadow: 0 0 18px rgba(200, 184, 154, .07);
+}
+.manual-paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+@media (max-width: 700px) {
+  .manual-paste-overlay {
+    align-items: end;
+    padding: 0;
+  }
+  .manual-paste-panel {
+    width: 100%;
+    max-height: calc(var(--vvh, 100dvh) - 12px);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding: 16px 14px max(18px, env(safe-area-inset-bottom));
+  }
+  .manual-paste-textarea {
+    min-height: 34dvh;
+  }
+  .manual-paste-actions .btn-hud {
+    min-height: 44px;
+  }
+}

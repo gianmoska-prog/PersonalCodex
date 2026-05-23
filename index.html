@@ -38,15 +38,12 @@
     <div class="hud-actions">
       <span class="sync-dot" id="sync-dot" aria-label="Sync status: local" title="Sync status: local" role="status"></span>
       <button class="btn-hud mobile-actions-toggle" id="btn-mobile-actions" type="button" aria-haspopup="dialog" aria-expanded="false">MENU</button>
-      <button class="btn-hud" id="btn-export" type="button">EXPORT</button>
       <button class="btn-hud" id="btn-copy" type="button">COPY</button>
       <button class="btn-hud" id="btn-paste" type="button">PASTE</button>
-      <label class="btn-hud import-label" for="import-file">IMPORT</label>
       <button class="btn-hud" id="btn-history" type="button">HISTORY</button>
       <button class="btn-hud" id="btn-sync" type="button" title="Automatic Firebase sync status">SYNC: LOCAL</button>
       <button class="btn-hud pwa-install-btn" id="btn-pwa-install" type="button" hidden>INSTALL</button>
       <button class="btn-hud subtle health-glyph" id="btn-health" type="button" aria-label="Open Codex Health" title="Codex Health">◌</button>
-      <input id="import-file" type="file" accept="application/json,.json,.txt,.md,text/plain,text/markdown" hidden />
     </div>
   </header>
 
@@ -55,12 +52,10 @@
     <section class="mobile-actions-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-actions-title">
       <div class="mobile-sheet-handle" aria-hidden="true"></div>
       <div class="micro-label">Codex Actions</div>
-      <h2 class="mobile-actions-title" id="mobile-actions-title">Archive</h2>
+      <h2 class="mobile-actions-title" id="mobile-actions-title">Clipboard</h2>
       <div class="mobile-actions-grid">
-        <button type="button" data-mobile-action="export">Export JSON</button>
         <button type="button" data-mobile-action="copy">Copy JSON</button>
         <button type="button" data-mobile-action="paste">Paste JSON</button>
-        <button type="button" data-mobile-action="import">Import File</button>
         <button type="button" data-mobile-action="history">History</button>
         <button type="button" data-mobile-action="health">Codex Health</button>
         <button type="button" data-mobile-action="sync">Sync Status</button>
@@ -314,7 +309,7 @@
         <div class="health-status-list" id="health-gpt-fields"></div>
       </section>
       <section class="health-section">
-        <div class="micro-label">Import Notes</div>
+        <div class="micro-label">Paste Notes</div>
         <div class="health-note" id="health-import-note">No import recorded yet.</div>
       </section>
       <section class="health-section">
@@ -341,7 +336,7 @@
       <div class="import-review-header">
         <div>
           <div class="panel-kicker">GPT Exchange</div>
-          <h2 class="import-review-title" id="import-review-title">Review Import</h2>
+          <h2 class="import-review-title" id="import-review-title">Review Paste</h2>
           <p class="import-review-subtitle">A backup of the current Codex will be downloaded before anything is applied.</p>
         </div>
         <button class="panel-close" type="button" data-import-action="cancel" aria-label="Cancel import">×</button>
@@ -2964,32 +2959,100 @@
         showToast('EXPORTED ✓');
       }
 
+      async function writeClipboardText(text) {
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+          try { await navigator.clipboard.writeText(text); return true; }
+          catch (err) { console.warn('Personal Codex: async clipboard write failed, trying fallback.', err); }
+        }
+        try {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.inset = '0 auto auto 0';
+          textarea.style.width = '1px';
+          textarea.style.height = '1px';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.focus({ preventScroll: true });
+          textarea.select();
+          textarea.setSelectionRange(0, textarea.value.length);
+          const copied = document.execCommand('copy');
+          textarea.remove();
+          return copied;
+        } catch (err) {
+          console.warn('Personal Codex: clipboard fallback write failed.', err);
+          return false;
+        }
+      }
+
+      async function readClipboardText() {
+        if (navigator.clipboard?.readText && window.isSecureContext) {
+          try { return await navigator.clipboard.readText(); }
+          catch (err) { console.warn('Personal Codex: async clipboard read failed, opening manual paste fallback.', err); }
+        }
+        return requestManualPaste();
+      }
+
+      function requestManualPaste() {
+        return new Promise(resolve => {
+          const overlay = document.createElement('div');
+          overlay.className = 'manual-paste-overlay';
+          overlay.innerHTML = `
+            <div class="manual-paste-backdrop" data-manual-paste-cancel></div>
+            <section class="manual-paste-panel" role="dialog" aria-modal="true" aria-labelledby="manual-paste-title">
+              <div class="mobile-sheet-handle" aria-hidden="true"></div>
+              <div class="micro-label">Clipboard Fallback</div>
+              <h2 class="manual-paste-title" id="manual-paste-title">Paste JSON</h2>
+              <p class="manual-paste-copy">Your browser blocked direct clipboard access. Paste the JSON below and confirm.</p>
+              <textarea class="manual-paste-textarea" id="manual-paste-textarea" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+              <div class="manual-paste-actions">
+                <button class="btn-hud" type="button" data-manual-paste-cancel>Cancel</button>
+                <button class="btn-hud" type="button" data-manual-paste-accept>Review Paste</button>
+              </div>
+            </section>
+          `;
+          document.body.appendChild(overlay);
+          updateEffectsPaused();
+          const textarea = overlay.querySelector('#manual-paste-textarea');
+          const cleanup = value => {
+            overlay.remove();
+            updateEffectsPaused();
+            resolve(value);
+          };
+          overlay.addEventListener('click', event => {
+            if (event.target.closest('[data-manual-paste-cancel]')) cleanup('');
+            if (event.target.closest('[data-manual-paste-accept]')) cleanup(textarea.value || '');
+          });
+          window.setTimeout(() => textarea.focus({ preventScroll: true }), 80);
+        });
+      }
+
       async function copyData() {
         updateTodayLog();
         if (!state.metadata || typeof state.metadata !== 'object') state.metadata = clone(DEFAULT_DATA.metadata);
         state.metadata.lastExportedAt = new Date().toISOString();
         saveData();
         enforceGptProtocol(state);
-        try {
-          await navigator.clipboard.writeText(JSON.stringify(state, null, 2));
-          showToast('COPIED ✓');
-        } catch (err) {
-          showToast('COPY FAILED');
-        }
+        const ok = await writeClipboardText(JSON.stringify(state, null, 2));
+        showToast(ok ? 'COPIED ✓' : 'COPY FAILED');
+      }
+
+      async function applyPastedCodexText(text) {
+        if (!text || !text.trim()) { showToast('CLIPBOARD EMPTY'); return; }
+        const imported = parseImportedCodex(text);
+        const issues = validateImportedPayload(imported);
+        const normalisedImport = normalizeData(imported);
+        const action = await showImportReview(imported, normalisedImport, issues);
+        if (action === 'cancel') { showToast('PASTE CANCELLED'); return; }
+        applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
       }
 
       async function pasteData() {
         try {
-          const text = await navigator.clipboard.readText();
-          if (!text || !text.trim()) { showToast('CLIPBOARD EMPTY'); return; }
-          const imported = parseImportedCodex(text);
-          const issues = validateImportedPayload(imported);
-          const normalisedImport = normalizeData(imported);
-          const action = await showImportReview(imported, normalisedImport, issues);
-          if (action === 'cancel') { showToast('IMPORT CANCELLED'); return; }
-          applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
+          await applyPastedCodexText(await readClipboardText());
         } catch (err) {
-          console.warn('Personal Codex: paste import failed.', err);
+          console.warn('Personal Codex: paste review failed.', err);
           showToast('INVALID JSON');
         }
       }
@@ -3823,7 +3886,7 @@
         mobileActionsOverlay.hidden = false;
         btnMobileActions?.setAttribute('aria-expanded', 'true');
         updateEffectsPaused();
-        openModalLayer(mobileActionsOverlay, '.mobile-actions-panel', mobileActionsOverlay.querySelector('[data-mobile-action="export"]'));
+        openModalLayer(mobileActionsOverlay, '.mobile-actions-panel', mobileActionsOverlay.querySelector('[data-mobile-action="copy"]'));
       }
 
       function closeMobileActions() {
@@ -3836,12 +3899,12 @@
 
       function runMobileAction(action) {
         closeMobileActions();
+        // Keep clipboard actions in the original tap/click call stack. Mobile browsers,
+        // especially iOS, may reject clipboard read/write after setTimeout.
+        if (action === 'copy') { copyData(); return; }
+        if (action === 'paste') { pasteData(); return; }
         window.setTimeout(() => {
-          if (action === 'export') exportData();
-          else if (action === 'copy') copyData();
-          else if (action === 'paste') pasteData();
-          else if (action === 'import') $('#import-file')?.click();
-          else if (action === 'history') openHistorySection();
+          if (action === 'history') openHistorySection();
           else if (action === 'health') openCodexHealth();
           else if (action === 'sync') openSyncOverlay();
           else if (action === 'install') promptInstallPwa();
@@ -4089,7 +4152,6 @@
         detailDelete.addEventListener('click', deleteDetailEntry);
 
         // Zone summaries are GPT-owned and read-only in the UI. They update only through imported JSON.
-        $('#btn-export').addEventListener('click', exportData);
         $('#btn-copy').addEventListener('click', copyData);
         $('#btn-paste').addEventListener('click', pasteData);
         $('#btn-history').addEventListener('click', openHistorySection);
@@ -4131,7 +4193,6 @@
             closeHistorySection();
           }
         });
-        $('#import-file').addEventListener('change', event => { importData(event.target.files[0]); event.target.value = ''; });
 
         document.addEventListener('keydown', event => {
           if (event.key === 'Tab' && trapModalFocus(event)) return;

@@ -570,6 +570,9 @@
         appId: '1:448458863563:web:725b104ee25e0d4a9f3c4e'
       });
       const CLOUD_STATE_PATH_SUFFIX = 'personalCodex/state';
+      const CLOUD_LISTENER_TIMEOUT_MS = 12000;
+      const CLOUD_LISTENER_MAX_RETRIES = 3;
+      const CLOUD_FALLBACK_GET_TIMEOUT_MS = 10000;
       const RATING_THRESHOLDS = { poorBelow: 50, excellentAt: 80 };
       const DAY_BOUNDARY_HOUR = 2;
       const GPT_PROTOCOL = Object.freeze({
@@ -748,6 +751,9 @@
       let cloudUploadRevision = 0;
       let cloudUploadChangeCounter = 0;
       let authStateResolved = false;
+      let listenerRetryTimer = null;
+      let listenerRetryCount = 0;
+      let cloudFallbackGetInFlight = false;
 
       const $ = (selector, root = document) => root.querySelector(selector);
       const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -1509,6 +1515,8 @@
       }
 
       function detachCloudListener() {
+        if (listenerRetryTimer) window.clearTimeout(listenerRetryTimer);
+        listenerRetryTimer = null;
         if (typeof syncUnsubscribe === 'function') {
           try { syncUnsubscribe(); } catch {}
         }
@@ -1517,45 +1525,96 @@
 
       async function startCloudSession(user) {
         if (!firebaseReady || !firebaseDb || !firebaseModules) await loadFirebaseSdk();
+        listenerRetryCount = 0;
         attachCloudListener(user);
       }
 
-      function attachCloudListener(user) {
+      function attachCloudListener(user, options = {}) {
         detachCloudListener();
         const path = cloudPathForUser(user);
         const stateRef = firebaseModules.dbMod.ref(firebaseDb, path);
         let receivedInitialSnapshot = false;
         const firstSnapshotWatchdog = window.setTimeout(() => {
-          if (!receivedInitialSnapshot) {
-            renderSyncStatus('ERROR', 'Firebase connected, but the cloud listener has not answered yet. Local cache remains available.');
-          }
-        }, 18000);
+          if (!receivedInitialSnapshot) recoverStalledCloudListener(user, stateRef);
+        }, CLOUD_LISTENER_TIMEOUT_MS);
         syncUnsubscribe = firebaseModules.dbMod.onValue(stateRef, snapshot => {
           const isInitialSnapshot = !receivedInitialSnapshot;
           receivedInitialSnapshot = true;
+          listenerRetryCount = 0;
           window.clearTimeout(firstSnapshotWatchdog);
-
-          if (!snapshot.exists()) {
-            if (hasMeaningfulLocalData()) {
-              forceUploadLocal('Initial cloud Codex created automatically from this device.').catch(error => {
-                console.warn('Personal Codex: initial cloud upload failed.', error);
-                renderSyncStatus('ERROR', error?.message || 'Initial cloud upload failed.');
-              });
-            } else {
-              renderSyncStatus('SYNCED', 'Signed in. Cloud is empty and ready for the first Codex entry.');
-            }
-            return;
-          }
-
-          const incomingRaw = snapshot.val();
-          const incoming = normalizeData(incomingRaw || {});
-          incoming._sync = normalizeSync(incomingRaw?._sync || {});
-          reconcileCloudSnapshot(incoming, isInitialSnapshot);
+          handleCloudSnapshot(snapshot, isInitialSnapshot);
         }, error => {
           window.clearTimeout(firstSnapshotWatchdog);
           console.warn('Personal Codex: cloud listener failed.', error);
-          renderSyncStatus('ERROR', error?.message || 'Realtime listener failed.');
+          recoverStalledCloudListener(user, stateRef, error);
         });
+        if (options.isRetry) {
+          renderSyncStatus('SYNCING', 'Realtime listener reattached. Waiting for Firebase confirmation…');
+        }
+      }
+
+      function handleCloudSnapshot(snapshot, isInitialSnapshot = false) {
+        if (!snapshot.exists()) {
+          if (hasMeaningfulLocalData()) {
+            forceUploadLocal('Initial cloud Codex created automatically from this device.').catch(error => {
+              console.warn('Personal Codex: initial cloud upload failed.', error);
+              renderSyncStatus('ERROR', error?.message || 'Initial cloud upload failed.');
+            });
+          } else {
+            renderSyncStatus('SYNCED', 'Signed in. Cloud is empty and ready for the first Codex entry.');
+          }
+          return;
+        }
+
+        const incomingRaw = snapshot.val();
+        const incoming = normalizeData(incomingRaw || {});
+        incoming._sync = normalizeSync(incomingRaw?._sync || {});
+        reconcileCloudSnapshot(incoming, isInitialSnapshot);
+      }
+
+      function promiseWithTimeout(promise, timeoutMs, message) {
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error(message || 'Operation timed out.')), timeoutMs);
+        });
+        return Promise.race([promise, timeoutPromise]).finally(() => window.clearTimeout(timeoutId));
+      }
+
+      async function recoverStalledCloudListener(user, stateRef, originalError = null) {
+        if (!user || !syncUser || user.uid !== syncUser.uid) return;
+        if (cloudFallbackGetInFlight) return;
+        cloudFallbackGetInFlight = true;
+        renderSyncStatus('SYNCING', 'Firebase is connected. Checking cloud copy and retrying listener…');
+        try {
+          const snapshot = await promiseWithTimeout(
+            firebaseModules.dbMod.get(stateRef),
+            CLOUD_FALLBACK_GET_TIMEOUT_MS,
+            'Cloud fallback read timed out.'
+          );
+          cloudFallbackGetInFlight = false;
+          if (!syncUser || user.uid !== syncUser.uid) return;
+          handleCloudSnapshot(snapshot, true);
+          if (syncUser && (!syncUnsubscribe || listenerRetryCount > 0)) scheduleCloudListenerRetry(user);
+        } catch (error) {
+          cloudFallbackGetInFlight = false;
+          console.warn('Personal Codex: listener fallback read failed.', originalError || error);
+          scheduleCloudListenerRetry(user);
+        }
+      }
+
+      function scheduleCloudListenerRetry(user) {
+        if (!user || !syncUser || user.uid !== syncUser.uid) return;
+        if (listenerRetryTimer) window.clearTimeout(listenerRetryTimer);
+        if (listenerRetryCount >= CLOUD_LISTENER_MAX_RETRIES) {
+          renderSyncStatus('ERROR', 'Firebase is signed in, but the cloud listener still has not answered. Local changes are protected; use Copy JSON or manual sync before clearing app data.');
+          return;
+        }
+        listenerRetryCount += 1;
+        const delay = 1800 * listenerRetryCount;
+        renderSyncStatus('SYNCING', `Retrying cloud listener (${listenerRetryCount}/${CLOUD_LISTENER_MAX_RETRIES})…`);
+        listenerRetryTimer = window.setTimeout(() => {
+          if (syncUser && user.uid === syncUser.uid) attachCloudListener(user, { isRetry: true });
+        }, delay);
       }
 
       function hasPendingLocalChanges() {

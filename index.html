@@ -124,8 +124,8 @@
           <button class="today-section-link" id="today-open-quick" type="button">All</button>
         </div>
         <div class="today-quick-row" id="today-quick-row"></div>
-        <div class="today-inline-entry" id="today-inline-entry" aria-label="Fast mobile entry">
-          <div class="today-inline-zones" id="today-inline-zones" aria-label="Quick entry zone">
+        <div class="today-inline-entry" id="today-inline-entry" aria-label="Fast GPT-classified mobile entry">
+          <div class="today-inline-zones" id="today-inline-zones" aria-label="Legacy quick entry zone" hidden>
             <button type="button" data-today-zone="head">Mind</button>
             <button type="button" data-today-zone="torso">Rituals</button>
             <button type="button" data-today-zone="arms">Craft</button>
@@ -366,11 +366,12 @@
         <div>
           <div class="panel-kicker">Codex Intake</div>
           <h2 class="composer-title" id="composer-title">Add Entry</h2>
+          <p class="composer-intake-note">Write the evidence plainly. The GPT will classify it later.</p>
         </div>
         <button class="composer-close" id="composer-close" type="button" aria-label="Close composer">×</button>
       </div>
 
-      <div class="entry-type-grid" id="entry-type-grid" aria-label="Entry type">
+      <div class="entry-type-grid composer-classification-controls" id="entry-type-grid" aria-label="Entry type" hidden>
         <button class="entry-type-card" type="button" data-composer-zone="head"><strong>Mind</strong><span>Clarity, mindset, emotional discipline, decisions.</span></button>
         <button class="entry-type-card" type="button" data-composer-zone="torso"><strong>Rituals</strong><span>Daily habits, streaks, standards, repeated actions.</span></button>
         <button class="entry-type-card" type="button" data-composer-zone="arms"><strong>Craft</strong><span>Skills, study, practice, technical improvement.</span></button>
@@ -378,17 +379,17 @@
         <button class="entry-type-card random-thought-card" type="button" data-composer-zone="random" aria-label="Random Thoughts, private non-zone material for GPT interpretation"><strong>Random Thoughts</strong><span>Loose thoughts for GPT interpretation, outside the four zones.</span></button>
       </div>
 
-      <div class="micro-label">Subsection</div>
-      <div class="subsection-row" id="composer-subsections"></div>
+      <div class="micro-label composer-subsection-label" hidden>Subsection</div>
+      <div class="subsection-row" id="composer-subsections" hidden></div>
 
       <div class="composer-fields">
         <label class="composer-field">
           <span>Entry</span>
-          <input class="composer-input" id="composer-entry-title" type="text" autocomplete="off" placeholder="Write the entry title…" />
+          <input class="composer-input" id="composer-entry-title" type="text" autocomplete="off" placeholder="What happened?" />
         </label>
         <label class="composer-field">
-          <span>Optional Note — stored inside this entry</span>
-          <textarea class="composer-note" id="composer-entry-note" placeholder="Optional context…"></textarea>
+          <span>Optional Note</span>
+          <textarea class="composer-note" id="composer-entry-note" placeholder="Add context only if useful…"></textarea>
         </label>
       </div>
 
@@ -612,7 +613,7 @@
             unregistered: 'No recorded evidence, random thought, or reflection for that Codex date.'
           },
           exportPreference: 'human-readable structured JSON for future personal GPT analysis',
-          entryCreation: 'Global floating composer; category entries are treated as raw daily evidence; Random Thoughts are recorded separately for GPT interpretation and do not contribute directly to zone completion.',
+          entryCreation: 'Global floating composer records unclassified intake entries. GPT later classifies them into Mind, Rituals, Craft, Body, or private interpretation as appropriate.',
           notesModel: 'Entries contain an array of timestamped notes. The interface remains simple, but the JSON keeps the richer detail.',
           sectionDisplayStatus: 'User entries record raw evidence and counts only. GPT imports control zone colour through dailyLog[YYYY-MM-DD].gptAssessment.zoneDisplayStatus = { head|torso|arms|legs: red|green|amber }. Legacy dailyLog[date].zoneDisplayStatus is still accepted and normalised.',
           currentSituationControl: 'Current Situation, the visible Reflection, and the bulletpoint Summary are persistent top-level GPT-authored dossier fields. They remain visible across Codex-day resets and may be changed only by importing updated Codex JSON.',
@@ -1226,6 +1227,7 @@
             manualSummary: typeof entry.manualSummary === 'string' ? entry.manualSummary : '',
             looseReflections: normalizeLooseReflections(entry.looseReflections || entry.reflections || []),
             randomThoughts: normalizeRandomThoughts(entry.randomThoughts || entry.randomThoughtsLog || []),
+            intakeEntries: normalizeIntakeEntries(entry.intakeEntries || entry.codexIntake || entry.unclassifiedEntries || []),
             gptAssessment: assessment,
             updatedAt: entry.updatedAt || null
           };
@@ -1234,7 +1236,7 @@
       }
 
       function makeUnregisteredDay(dateKey, timestamp = null) {
-        return { date: dateKey, status: 'UNREGISTERED', zones: null, overallPct: null, rating: 'UNREGISTERED', gptReflection: '', dailyReflection: '', manualSummary: '', looseReflections: [], randomThoughts: [], gptAssessment: normalizeGptAssessment({}), updatedAt: timestamp || new Date().toISOString() };
+        return { date: dateKey, status: 'UNREGISTERED', zones: null, overallPct: null, rating: 'UNREGISTERED', gptReflection: '', dailyReflection: '', manualSummary: '', looseReflections: [], randomThoughts: [], intakeEntries: [], gptAssessment: normalizeGptAssessment({}), updatedAt: timestamp || new Date().toISOString() };
       }
 
       function normalizeLooseReflections(input) {
@@ -1286,6 +1288,33 @@
 
       function randomThoughtCount(dateKey = todayKey()) {
         return randomThoughtsForDate(dateKey).length;
+      }
+
+      function normalizeIntakeEntries(input) {
+        if (!Array.isArray(input)) return [];
+        return input
+          .filter(item => item && typeof item === 'object')
+          .map(item => ({
+            id: item.id || uid(),
+            title: typeof item.title === 'string' && item.title.trim() ? item.title.trim() : 'Untitled intake entry',
+            text: typeof item.text === 'string' ? item.text : (typeof item.note === 'string' ? item.note : ''),
+            codexDate: item.codexDate || item.date || todayKey(),
+            createdAt: item.createdAt || new Date().toISOString(),
+            updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
+            source: item.source || 'manual-intake',
+            visibility: 'visible-intake',
+            classificationStatus: item.classificationStatus || 'awaiting-gpt-classification',
+            suggestedZone: item.suggestedZone || null,
+            gpt: item.gpt && typeof item.gpt === 'object' ? item.gpt : {}
+          }));
+      }
+
+      function intakeEntriesForDate(dateKey = todayKey()) {
+        return normalizeIntakeEntries(state.dailyLog?.[dateKey]?.intakeEntries || []).filter(item => item.codexDate === dateKey);
+      }
+
+      function intakeEntryCount(dateKey = todayKey()) {
+        return intakeEntriesForDate(dateKey).length;
       }
 
       function normalizeNotes(item) {
@@ -1846,7 +1875,7 @@
 
       function hasDayEvidence(dateKey = todayKey()) {
         const reflection = state.dailyLog?.[dateKey]?.dailyReflection || state.dailyLog?.[dateKey]?.manualSummary || '';
-        return allEntriesForDate(dateKey).length > 0 || randomThoughtCount(dateKey) > 0 || looseReflectionCount(dateKey) > 0 || Boolean(reflection.trim());
+        return allEntriesForDate(dateKey).length > 0 || intakeEntryCount(dateKey) > 0 || randomThoughtCount(dateKey) > 0 || looseReflectionCount(dateKey) > 0 || Boolean(reflection.trim());
       }
 
       function completionForZone(zone, dateKey = todayKey()) {
@@ -1879,7 +1908,7 @@
 
       function totalRecordsForDay(dateKey = todayKey()) {
         const zoneRecords = allEntriesForDate(dateKey).length;
-        return zoneRecords + randomThoughtCount(dateKey) + looseReflectionCount(dateKey);
+        return zoneRecords + intakeEntryCount(dateKey) + randomThoughtCount(dateKey) + looseReflectionCount(dateKey);
       }
 
       function overallAssessmentForDay(dateKey = todayKey()) {
@@ -1938,6 +1967,7 @@
           manualSummary: previous.manualSummary || previous.dailyReflection || '',
           looseReflections: normalizeLooseReflections(previous.looseReflections || []),
           randomThoughts: normalizeRandomThoughts(previous.randomThoughts || []),
+          intakeEntries: normalizeIntakeEntries(previous.intakeEntries || []),
           gptAssessment: previousAssessment,
           updatedAt: new Date().toISOString()
         };
@@ -1960,6 +1990,7 @@
           snap.manualSummary = existing.manualSummary || existing.dailyReflection || '';
           snap.looseReflections = normalizeLooseReflections(existing.looseReflections || []);
           snap.randomThoughts = normalizeRandomThoughts(existing.randomThoughts || []);
+          snap.intakeEntries = normalizeIntakeEntries(existing.intakeEntries || []);
           snap.gptAssessment = normalizeGptAssessment(existing.gptAssessment || { zoneDisplayStatus: existing.zoneDisplayStatus || {}, reasons: existing.zoneDisplayReasons || {} });
           return snap;
         }
@@ -2067,12 +2098,14 @@
 
       function allTodayZoneEntries() {
         const key = todayKey();
-        return ['head', 'torso', 'arms', 'legs'].flatMap(zone => {
+        const zoneEntries = ['head', 'torso', 'arms', 'legs'].flatMap(zone => {
           const z = getZone(zone);
           return (z.items || [])
             .filter(item => (item.codexDate || isoToCodexDate(item.createdAt)) === key)
-            .map(item => ({ ...item, zone, zoneLabel: z.label }));
-        }).sort((a, b) => compareDateKeys(b.createdAt, a.createdAt));
+            .map(item => ({ ...item, zone, zoneLabel: z.label, intake: false }));
+        });
+        const intakeEntries = intakeEntriesForDate(key).map(item => ({ ...item, zone: 'intake', zoneLabel: 'INTAKE', subsection: 'Awaiting GPT', notes: item.text ? [{ text: item.text, createdAt: item.createdAt }] : [], intake: true }));
+        return [...zoneEntries, ...intakeEntries].sort((a, b) => compareDateKeys(b.createdAt, a.createdAt));
       }
 
       function preferredTodayQuickActions() {
@@ -2120,7 +2153,7 @@
           const entries = allTodayZoneEntries();
           todayEntryLog.innerHTML = entries.length ? entries.map(entry => {
             const note = latestNoteText(entry);
-            return `<button class="today-entry-card" type="button" data-entry-zone="${escapeHTML(entry.zone)}" data-entry-id="${escapeHTML(entry.id)}"><span class="today-entry-zone">${escapeHTML(entry.zoneLabel)}</span><strong>${escapeHTML(entry.title)}</strong><small>${escapeHTML(entry.subsection || 'General')} · ${formatEntryTime(entry.createdAt)}</small>${note ? `<em>${escapeHTML(note)}</em>` : ''}</button>`;
+            return `<button class="today-entry-card ${entry.intake ? 'is-intake' : ''}" type="button" ${entry.intake ? `data-intake-id="${escapeHTML(entry.id)}"` : `data-entry-zone="${escapeHTML(entry.zone)}" data-entry-id="${escapeHTML(entry.id)}"`}><span class="today-entry-zone">${escapeHTML(entry.zoneLabel)}</span><strong>${escapeHTML(entry.title)}</strong><small>${escapeHTML(entry.subsection || 'General')} · ${formatEntryTime(entry.createdAt)}</small>${note ? `<em>${escapeHTML(note)}</em>` : ''}</button>`;
           }).join('') : '<div class="today-empty-state">No visible zone entries yet. Use Quick Log or the central + to record the first piece of evidence.</div>';
         }
 
@@ -2193,15 +2226,14 @@
           btn.classList.toggle('active', active);
           btn.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
-        if (todayQuickInput) todayQuickInput.placeholder = `Quick ${state.zones[selectedTodayQuickZone]?.label || 'entry'} entry…`;
+        if (todayQuickInput) todayQuickInput.placeholder = 'Quick Codex entry…';
       }
 
       function submitTodayQuickEntry() {
         if (!isMobileViewport() || !todayQuickInput) return false;
         const title = todayQuickInput.value.trim();
         if (!title) { haptic(8); todayQuickInput.focus({ preventScroll: true }); return false; }
-        const zone = selectedTodayQuickZone || 'head';
-        const created = addEntry(zone, title, '', 'General');
+        const created = addIntakeEntry(title, '');
         if (!created) { showToast('ENTRY FAILED'); return false; }
         todayQuickInput.value = '';
         haptic(24);
@@ -2416,7 +2448,9 @@
         const reflection = entry.gptReflection || '';
         const legacyReflectionCount = (entry.looseReflections || []).length;
         const randomCount = (entry.randomThoughts || []).length;
+        const intakeCount = (entry.intakeEntries || []).length;
         const privateNotes = [
+          intakeCount ? `${intakeCount} intake ${intakeCount === 1 ? 'entry awaits' : 'entries await'} GPT classification.` : '',
           randomCount ? `${randomCount} random ${randomCount === 1 ? 'thought' : 'thoughts'} recorded in JSON.` : '',
           legacyReflectionCount ? `${legacyReflectionCount} legacy private ${legacyReflectionCount === 1 ? 'reflection' : 'reflections'} preserved in JSON.` : ''
         ].filter(Boolean).map(text => `<p class="history-private-note">${text}</p>`).join('');
@@ -2495,6 +2529,35 @@
             });
             itemList.appendChild(li);
           });
+      }
+
+      function addIntakeEntry(title, note = '') {
+        const now = new Date().toISOString();
+        const key = todayKey();
+        if (!state.dailyLog || typeof state.dailyLog !== 'object') state.dailyLog = {};
+        const titleValue = title.trim();
+        const textValue = note.trim();
+        if (!titleValue && !textValue) return false;
+        const existing = state.dailyLog[key] || makeUnregisteredDay(key, now);
+        const intakeEntries = normalizeIntakeEntries(existing.intakeEntries || []);
+        intakeEntries.push({
+          id: uid(),
+          title: titleValue || 'Untitled intake entry',
+          text: textValue,
+          codexDate: key,
+          createdAt: now,
+          updatedAt: now,
+          source: 'manual-intake',
+          visibility: 'visible-intake',
+          classificationStatus: 'awaiting-gpt-classification',
+          suggestedZone: null,
+          gpt: {}
+        });
+        state.dailyLog[key] = { ...existing, status: 'REGISTERED', intakeEntries, updatedAt: now };
+        updateTodayLog();
+        saveData();
+        renderAllStats(false);
+        return true;
       }
 
       function addRandomThought(title, note = '') {
@@ -2856,7 +2919,7 @@
 
 
       function openComposer(preselectedZone = activeZone || 'head') {
-        setComposerZone(preselectedZone || 'head');
+        selectedComposerZone = 'intake';
         composerTitleInput.value = '';
         composerNoteInput.value = '';
         entryComposer.hidden = false;
@@ -2899,26 +2962,19 @@
       }
 
       function updateComposerPlaceholders() {
-        const activeSubsection = $('.subsection-pill.active', composerSubsections);
-        const subsection = activeSubsection?.dataset.subsection || 'General';
-        const isRandomThought = selectedComposerZone === 'random';
-        composerTitleInput.placeholder = isRandomThought ? 'Random thought title — optional if note is written…' : 'Write the entry title…';
-        composerNoteInput.placeholder = isRandomThought ? 'Write the thought. It will be preserved in the JSON and considered by GPT, without marking any zone complete…' : 'Optional context…';
-        composerSave.textContent = isRandomThought ? 'Record Thought' : 'Record Entry';
+        composerTitleInput.placeholder = 'What happened?';
+        composerNoteInput.placeholder = 'Add context only if useful…';
+        composerSave.textContent = 'Record Entry';
       }
 
       function submitComposer() {
-        const activeSubsection = $('.subsection-pill.active', composerSubsections);
-        const subsection = selectedComposerZone === 'random' ? 'Random Thought' : (activeSubsection?.dataset.subsection || 'General');
-        const isRandomThought = selectedComposerZone === 'random';
         const title = composerTitleInput.value.trim();
         const note = composerNoteInput.value.trim();
-        if (!title && !(isRandomThought && note)) { showToast(isRandomThought ? 'THOUGHT REQUIRED' : 'ENTRY REQUIRED'); composerTitleInput.focus({ preventScroll: true }); return; }
-        const created = addEntry(selectedComposerZone, title || 'Random thought', composerNoteInput.value, subsection);
+        if (!title && !note) { showToast('ENTRY REQUIRED'); composerTitleInput.focus({ preventScroll: true }); return; }
+        const created = addIntakeEntry(title || 'Untitled intake entry', note);
         if (!created) { showToast('ENTRY FAILED'); return; }
         haptic(26);
-        showToast(isRandomThought ? 'THOUGHT RECORDED' : 'ENTRY RECORDED');
-        if (!isRandomThought && isMobileViewport()) setTodayQuickZone(selectedComposerZone);
+        showToast('ENTRY RECORDED — GPT WILL CLASSIFY');
         closeComposer(true);
       }
 
@@ -3216,6 +3272,12 @@
           : 0;
       }
 
+      function countPayloadIntakeEntries(payload) {
+        return payload?.dailyLog && typeof payload.dailyLog === 'object'
+          ? Object.values(payload.dailyLog).reduce((total, day) => total + (Array.isArray(day?.intakeEntries) ? day.intakeEntries.length : 0), 0)
+          : 0;
+      }
+
       function countPayloadPrivateReflections(payload) {
         return payload?.dailyLog && typeof payload.dailyLog === 'object'
           ? Object.values(payload.dailyLog).reduce((total, day) => total + (Array.isArray(day?.looseReflections) ? day.looseReflections.length : 0), 0)
@@ -3227,19 +3289,21 @@
         const zoneEntries = Object.values(entry.zones || {}).reduce((acc, zone) => acc + ((zone.entries || []).length), 0);
         const privateReflections = Object.values(entry.zones || {}).reduce((acc, zone) => acc + (zone.hiddenEvidenceCount || 0), 0) + ((entry.looseReflections || []).length);
         const randomThoughts = (entry.randomThoughts || []).length;
-        return { zoneEntries, randomThoughts, privateReflections, total: zoneEntries + randomThoughts + privateReflections };
+        const intakeEntries = (entry.intakeEntries || []).length;
+        return { zoneEntries, randomThoughts, privateReflections, intakeEntries, total: zoneEntries + randomThoughts + privateReflections + intakeEntries };
       }
 
       function recordCountFragments(counts) {
         const fragments = [];
         if (counts.zoneEntries) fragments.push(`${counts.zoneEntries} zone ${counts.zoneEntries === 1 ? 'entry' : 'entries'}`);
+        if (counts.intakeEntries) fragments.push(`${counts.intakeEntries} intake ${counts.intakeEntries === 1 ? 'entry' : 'entries'}`);
         if (counts.randomThoughts) fragments.push(`${counts.randomThoughts} random ${counts.randomThoughts === 1 ? 'thought' : 'thoughts'}`);
         if (counts.privateReflections) fragments.push(`${counts.privateReflections} private ${counts.privateReflections === 1 ? 'reflection' : 'reflections'}`);
         return fragments;
       }
 
       function countPayloadEntries(payload) {
-        return countPayloadZoneEntries(payload) + countPayloadRandomThoughts(payload) + countPayloadPrivateReflections(payload);
+        return countPayloadZoneEntries(payload) + countPayloadIntakeEntries(payload) + countPayloadRandomThoughts(payload) + countPayloadPrivateReflections(payload);
       }
 
       function describeGptFields(payload) {
@@ -4167,6 +4231,7 @@
         todayEntryLog?.addEventListener('click', event => {
           const card = event.target.closest('[data-entry-id]');
           if (card) openEntryDetail(card.dataset.entryZone, card.dataset.entryId);
+          else if (event.target.closest('[data-intake-id]')) showToast('INTAKE ENTRY — GPT WILL CLASSIFY');
         });
         quickActionsClose?.addEventListener('click', () => closeQuickActions(false));
         quickActionsCancel?.addEventListener('click', () => closeQuickActions(false));

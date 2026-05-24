@@ -6142,3 +6142,147 @@
     top: calc(env(safe-area-inset-top) + 8px) !important;
   }
 }
+
+/* Patch 46 — restore compact mobile header; keep sync dot elegant and visible */
+@media (max-width: 760px) {
+  :root {
+    --header-h: calc(62px + var(--safe-top));
+  }
+
+  .hud-header {
+    height: var(--header-h) !important;
+    grid-template-columns: 44px minmax(0, 1fr) auto !important;
+    grid-template-rows: 1fr !important;
+    align-items: center !important;
+    align-content: center !important;
+    gap: 8px !important;
+    padding: var(--safe-top) max(12px, var(--safe-right)) 0 max(12px, var(--safe-left)) !important;
+  }
+
+  .hud-title-block {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    justify-self: center !important;
+    align-self: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    min-width: 0 !important;
+    width: min(58vw, 320px) !important;
+  }
+
+  .hud-kicker,
+  .hud-date {
+    display: none !important;
+  }
+
+  .hud-title {
+    font-size: .74rem !important;
+    letter-spacing: .18em !important;
+    line-height: 1.1 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .hud-actions {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    align-self: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+  }
+
+  .hud-actions > :not(.mobile-actions-toggle):not(.sync-dot) {
+    display: none !important;
+  }
+
+  .hud-actions > .sync-dot {
+    display: inline-block !important;
+    order: 0 !important;
+    width: 8px !important;
+    height: 8px !important;
+    margin: 0 !important;
+    position: relative !important;
+    opacity: .98 !important;
+  }
+
+  .hud-actions > .sync-dot::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 999px;
+  }
+
+  .mobile-actions-toggle {
+    order: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 38px !important;
+    padding: 0 13px !important;
+    border-radius: 12px !important;
+    font-size: .58rem !important;
+    letter-spacing: .13em !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .hud-title {
+    font-size: .70rem !important;
+    letter-spacing: .15em !important;
+  }
+  .mobile-actions-toggle {
+    padding: 0 11px !important;
+  }
+}
+
+
+/* Patch 47 — Minimal unclassified intake composer */
+.composer-intake-note {
+  margin: 8px 0 0;
+  color: rgba(245, 240, 232, .52);
+  font-family: var(--font-body);
+  font-size: .98rem;
+  line-height: 1.35;
+  letter-spacing: .025em;
+}
+
+.composer-classification-controls,
+.composer-subsection-label,
+#composer-subsections[hidden] {
+  display: none !important;
+}
+
+.today-entry-card.is-intake {
+  border-color: rgba(200, 184, 154, .22);
+  background: linear-gradient(180deg, rgba(200, 184, 154, .075), rgba(5, 13, 26, .42));
+}
+
+.today-entry-card.is-intake .today-entry-zone {
+  color: var(--accent-active);
+}
+
+@media (max-width: 700px) {
+  .today-inline-zones {
+    display: none !important;
+  }
+
+  .today-inline-entry {
+    padding-top: 12px;
+  }
+
+  .composer-panel {
+    width: min(560px, calc(100vw - 24px));
+  }
+
+  .composer-intake-note {
+    font-size: .92rem;
+    color: rgba(245, 240, 232, .48);
+  }
+}

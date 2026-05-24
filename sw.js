@@ -1,4 +1,4 @@
-const CACHE_NAME = 'personal-codex-pwa-v45';
+const CACHE_NAME = 'personal-codex-pwa-v47';
 const APP_SHELL = [
   './',
   './index.html',

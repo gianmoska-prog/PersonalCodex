@@ -573,6 +573,9 @@
       const CLOUD_LISTENER_TIMEOUT_MS = 12000;
       const CLOUD_LISTENER_MAX_RETRIES = 3;
       const CLOUD_FALLBACK_GET_TIMEOUT_MS = 10000;
+      const CLOUD_REST_TIMEOUT_MS = 12000;
+      const CLOUD_UPLOAD_TIMEOUT_MS = 12000;
+      const CLOUD_REST_POLL_INTERVAL_MS = 15000;
       const RATING_THRESHOLDS = { poorBelow: 50, excellentAt: 80 };
       const DAY_BOUNDARY_HOUR = 2;
       const GPT_PROTOCOL = Object.freeze({
@@ -754,6 +757,9 @@
       let listenerRetryTimer = null;
       let listenerRetryCount = 0;
       let cloudFallbackGetInFlight = false;
+      let cloudRestPollTimer = null;
+      let cloudRestPollInFlight = false;
+      let cloudRestFallbackActive = false;
 
       const $ = (selector, root = document) => root.querySelector(selector);
       const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -1465,7 +1471,12 @@
           firebaseAuth = authMod.getAuth(firebaseApp);
           try { await authMod.setPersistence(firebaseAuth, authMod.browserLocalPersistence); }
           catch (error) { console.warn('Personal Codex: could not set Firebase auth persistence.', error); }
-          firebaseDb = dbMod.getDatabase(firebaseApp);
+          try {
+            firebaseDb = dbMod.initializeDatabase(firebaseApp, { experimentalAutoDetectLongPolling: true });
+          } catch (dbInitError) {
+            console.warn('Personal Codex: Firebase database already initialised or long-poll detection unavailable; using existing database instance.', dbInitError);
+            firebaseDb = dbMod.getDatabase(firebaseApp);
+          }
           firebaseModules = { appMod, authMod, dbMod };
           firebaseReady = true;
           return firebaseModules;
@@ -1502,6 +1513,7 @@
         syncUser = user || null;
         if (!syncUser) {
           detachCloudListener();
+          stopCloudRestPolling();
           renderSyncStatus('LOCAL', 'Signed out. Local storage is active.');
           return;
         }
@@ -1542,6 +1554,7 @@
           receivedInitialSnapshot = true;
           listenerRetryCount = 0;
           window.clearTimeout(firstSnapshotWatchdog);
+          if (cloudRestFallbackActive) stopCloudRestPolling();
           handleCloudSnapshot(snapshot, isInitialSnapshot);
         }, error => {
           window.clearTimeout(firstSnapshotWatchdog);
@@ -1554,7 +1567,11 @@
       }
 
       function handleCloudSnapshot(snapshot, isInitialSnapshot = false) {
-        if (!snapshot.exists()) {
+        handleCloudPayload(snapshot.exists(), snapshot.exists() ? snapshot.val() : null, isInitialSnapshot);
+      }
+
+      function handleCloudPayload(exists, rawValue, isInitialSnapshot = false) {
+        if (!exists || rawValue == null) {
           if (hasMeaningfulLocalData()) {
             forceUploadLocal('Initial cloud Codex created automatically from this device.').catch(error => {
               console.warn('Personal Codex: initial cloud upload failed.', error);
@@ -1566,7 +1583,7 @@
           return;
         }
 
-        const incomingRaw = snapshot.val();
+        const incomingRaw = rawValue;
         const incoming = normalizeData(incomingRaw || {});
         incoming._sync = normalizeSync(incomingRaw?._sync || {});
         reconcileCloudSnapshot(incoming, isInitialSnapshot);
@@ -1580,24 +1597,128 @@
         return Promise.race([promise, timeoutPromise]).finally(() => window.clearTimeout(timeoutId));
       }
 
-      async function recoverStalledCloudListener(user, stateRef, originalError = null) {
-        if (!user || !syncUser || user.uid !== syncUser.uid) return;
-        if (cloudFallbackGetInFlight) return;
-        cloudFallbackGetInFlight = true;
-        renderSyncStatus('SYNCING', 'Firebase is connected. Checking cloud copy and retrying listener…');
+
+      async function firebaseIdTokenFor(user = syncUser) {
+        if (!user?.getIdToken) throw new Error('Firebase auth token is unavailable on this device.');
+        return promiseWithTimeout(user.getIdToken(false), CLOUD_REST_TIMEOUT_MS, 'Firebase auth token timed out.');
+      }
+
+      async function cloudRestUrlForUser(user = syncUser) {
+        const path = cloudPathForUser(user).split('/').filter(Boolean).map(encodeURIComponent).join('/');
+        const base = String(FIREBASE_CONFIG.databaseURL || '').replace(/\/$/, '');
+        if (!base || !path) throw new Error('Firebase database URL or cloud path is missing.');
+        const token = encodeURIComponent(await firebaseIdTokenFor(user));
+        return `${base}/${path}.json?auth=${token}`;
+      }
+
+      async function readCloudViaRest(user = syncUser) {
+        const url = await cloudRestUrlForUser(user);
+        const response = await promiseWithTimeout(
+          fetch(url, { method: 'GET', cache: 'no-store' }),
+          CLOUD_REST_TIMEOUT_MS,
+          'Firebase REST read timed out.'
+        );
+        if (!response.ok) throw new Error(`Firebase REST read failed (${response.status}).`);
+        const value = await response.json();
+        return { exists: value !== null && value !== undefined, value };
+      }
+
+      async function writeCloudViaRest(payload, user = syncUser) {
+        const url = await cloudRestUrlForUser(user);
+        const response = await promiseWithTimeout(
+          fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }),
+          CLOUD_UPLOAD_TIMEOUT_MS,
+          'Firebase REST upload timed out.'
+        );
+        if (!response.ok) throw new Error(`Firebase REST upload failed (${response.status}).`);
+        return response.json().catch(() => null);
+      }
+
+      async function readCloudAuthoritative(user = syncUser) {
+        if (!firebaseReady || !firebaseDb || !firebaseModules) await loadFirebaseSdk();
+        const stateRef = firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(user));
         try {
           const snapshot = await promiseWithTimeout(
             firebaseModules.dbMod.get(stateRef),
             CLOUD_FALLBACK_GET_TIMEOUT_MS,
-            'Cloud fallback read timed out.'
+            'Firebase SDK read timed out.'
           );
+          return { exists: snapshot.exists(), value: snapshot.exists() ? snapshot.val() : null, mode: 'sdk' };
+        } catch (sdkError) {
+          console.warn('Personal Codex: Firebase SDK read stalled; using REST fallback.', sdkError);
+          const rest = await readCloudViaRest(user);
+          return { ...rest, mode: 'rest' };
+        }
+      }
+
+      async function writeCloudAuthoritative(payload, user = syncUser) {
+        if (!firebaseReady || !firebaseDb || !firebaseModules) await loadFirebaseSdk();
+        const stateRef = firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(user));
+        try {
+          await promiseWithTimeout(
+            firebaseModules.dbMod.set(stateRef, payload),
+            CLOUD_UPLOAD_TIMEOUT_MS,
+            'Firebase SDK upload timed out.'
+          );
+          return 'sdk';
+        } catch (sdkError) {
+          console.warn('Personal Codex: Firebase SDK upload stalled; using REST fallback.', sdkError);
+          await writeCloudViaRest(payload, user);
+          startCloudRestPolling(user, 'Realtime upload stalled; REST fallback remains active on this device.');
+          return 'rest';
+        }
+      }
+
+      function stopCloudRestPolling() {
+        if (cloudRestPollTimer) window.clearInterval(cloudRestPollTimer);
+        cloudRestPollTimer = null;
+        cloudRestPollInFlight = false;
+        cloudRestFallbackActive = false;
+      }
+
+      function startCloudRestPolling(user = syncUser, note = '') {
+        if (!user || !syncUser || user.uid !== syncUser.uid) return;
+        cloudRestFallbackActive = true;
+        if (cloudRestPollTimer) return;
+        renderSyncStatus('SYNCED', note || 'Realtime listener is unreliable on this device; fallback cloud polling is active.');
+        const poll = async () => {
+          if (!syncUser || user.uid !== syncUser.uid || !navigator.onLine || cloudRestPollInFlight) return;
+          if (cloudUploadInFlight) return;
+          cloudRestPollInFlight = true;
+          try {
+            const result = await readCloudViaRest(user);
+            handleCloudPayload(result.exists, result.value, false);
+          } catch (error) {
+            console.warn('Personal Codex: REST fallback poll failed.', error);
+            renderSyncStatus('SYNCING', 'Fallback cloud polling is retrying…');
+          } finally {
+            cloudRestPollInFlight = false;
+          }
+        };
+        cloudRestPollTimer = window.setInterval(poll, CLOUD_REST_POLL_INTERVAL_MS);
+        window.setTimeout(poll, 1200);
+      }
+
+      async function recoverStalledCloudListener(user, stateRef, originalError = null) {
+        if (!user || !syncUser || user.uid !== syncUser.uid) return;
+        if (cloudFallbackGetInFlight) return;
+        cloudFallbackGetInFlight = true;
+        renderSyncStatus('SYNCING', 'Realtime listener is quiet. Reading cloud through fallback channel…');
+        try {
+          const result = await readCloudAuthoritative(user);
           cloudFallbackGetInFlight = false;
           if (!syncUser || user.uid !== syncUser.uid) return;
-          handleCloudSnapshot(snapshot, true);
-          if (syncUser && (!syncUnsubscribe || listenerRetryCount > 0)) scheduleCloudListenerRetry(user);
+          handleCloudPayload(result.exists, result.value, true);
+          if (result.mode === 'rest') startCloudRestPolling(user, 'Cloud reached through fallback channel. Automatic polling is active on this device.');
+          else if (syncUser && (!syncUnsubscribe || listenerRetryCount > 0)) scheduleCloudListenerRetry(user);
         } catch (error) {
           cloudFallbackGetInFlight = false;
           console.warn('Personal Codex: listener fallback read failed.', originalError || error);
+          startCloudRestPolling(user, 'Realtime listener is unavailable. Fallback cloud polling is active.');
           scheduleCloudListenerRetry(user);
         }
       }
@@ -1606,7 +1727,7 @@
         if (!user || !syncUser || user.uid !== syncUser.uid) return;
         if (listenerRetryTimer) window.clearTimeout(listenerRetryTimer);
         if (listenerRetryCount >= CLOUD_LISTENER_MAX_RETRIES) {
-          renderSyncStatus('ERROR', 'Firebase is signed in, but the cloud listener still has not answered. Local changes are protected; use Copy JSON or manual sync before clearing app data.');
+          startCloudRestPolling(user, 'Realtime listener did not stabilise. Fallback cloud polling is active.');
           return;
         }
         listenerRetryCount += 1;
@@ -1802,7 +1923,7 @@
         cloudUploadRevision = nextRevision;
         cloudUploadChangeCounter = localChangeCounter;
         try {
-          await firebaseModules.dbMod.set(firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(syncUser)), payload);
+          const uploadMode = await writeCloudAuthoritative(payload, syncUser);
           lastRemoteRevision = nextRevision;
           cloudUploadInFlight = false;
           cloudUploadRevision = 0;
@@ -1812,7 +1933,7 @@
             state.updatedAt = now;
             pendingCloudSave = false;
             window.clearTimeout(syncSaveTimer);
-            renderSyncStatus('SYNCED', note);
+            renderSyncStatus('SYNCED', cloudRestFallbackActive ? `${note} Fallback cloud channel is active on this device.` : note);
           } else {
             state._sync = {
               ...normalizeSync(state._sync || {}),
@@ -1846,14 +1967,13 @@
 
       async function pullCloudNow() {
         if (!syncUser) { renderSyncStatus('LOCAL', 'Sign in before pulling from cloud.'); return; }
-        if (!firebaseReady || !firebaseDb || !firebaseModules) await loadFirebaseSdk();
         renderSyncStatus('SYNCING', 'Pulling cloud Codex…');
-        const snapshot = await firebaseModules.dbMod.get(firebaseModules.dbMod.ref(firebaseDb, cloudPathForUser(syncUser)));
-        if (!snapshot.exists()) { renderSyncStatus('SYNCED', 'No cloud copy exists yet.'); return; }
-        const remoteRaw = snapshot.val();
+        const result = await readCloudAuthoritative(syncUser);
+        if (!result.exists) { renderSyncStatus('SYNCED', 'No cloud copy exists yet.'); return; }
+        const remoteRaw = result.value;
         const remoteState = normalizeData(remoteRaw || {});
         remoteState._sync = normalizeSync(remoteRaw?._sync || {});
-        applyRemoteState(remoteState, 'Cloud copy pulled manually.');
+        applyRemoteState(remoteState, result.mode === 'rest' ? 'Cloud copy pulled through fallback channel.' : 'Cloud copy pulled manually.');
       }
 
       function handleOnlineStateChange() {
@@ -1861,6 +1981,7 @@
           if (syncUser) {
             renderSyncStatus('SYNCING', hasPendingLocalChanges() ? 'Connection restored. Saving pending local changes…' : 'Connection restored. Waiting for Firebase confirmation…');
             if (hasPendingLocalChanges()) queueCloudSave();
+            if (cloudRestFallbackActive) startCloudRestPolling(syncUser, 'Connection restored. Fallback cloud polling active.');
           } else {
             renderSyncStatus('LOCAL');
           }

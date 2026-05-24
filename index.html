@@ -146,9 +146,25 @@
         <div class="today-entry-log" id="today-entry-log"></div>
       </section>
 
-      <section class="today-gpt-card" aria-label="Current situation summary">
-        <div class="micro-label">Current Situation</div>
-        <p id="today-current-situation">Awaiting GPT-generated current situation.</p>
+      <section class="today-gpt-card" aria-label="GPT current situation, reflection, and summary">
+        <div class="today-gpt-card-head">
+          <div class="micro-label">Current Situation</div>
+          <span>GPT Dossier</span>
+        </div>
+        <div class="today-gpt-scroll" aria-label="Scrollable GPT dossier text">
+          <article class="today-gpt-section">
+            <h3>Current Situation</h3>
+            <p id="today-current-situation">Awaiting GPT-generated current situation.</p>
+          </article>
+          <article class="today-gpt-section">
+            <h3>Reflection</h3>
+            <p id="today-gpt-reflection">Awaiting GPT-generated reflection.</p>
+          </article>
+          <article class="today-gpt-section">
+            <h3>Summary</h3>
+            <p id="today-bullet-summary">Awaiting GPT bulletpoint summary.</p>
+          </article>
+        </div>
       </section>
     </section>
     <section class="left-readout" aria-label="Codex rating summary">
@@ -801,6 +817,8 @@
       const todayQuickRow = $('#today-quick-row');
       const todayEntryLog = $('#today-entry-log');
       const todayCurrentSituation = $('#today-current-situation');
+      const todayGptReflection = $('#today-gpt-reflection');
+      const todayBulletSummary = $('#today-bullet-summary');
       const todayPrimaryAdd = $('#today-primary-add');
       const todayOpenQuick = $('#today-open-quick');
       const todayOpenHistory = $('#today-open-history');
@@ -1431,6 +1449,8 @@
           if (clean === 'ERROR') syncDot.classList.add('sync-state-error');
           if (clean === 'OFFLINE') syncDot.classList.add('sync-state-offline');
           if (clean === 'CONFLICT') syncDot.classList.add('sync-state-conflict');
+          if (clean === 'FALLBACK') syncDot.classList.add('sync-state-syncing');
+          if (clean === 'TIMEOUT') syncDot.classList.add('sync-state-error');
           const resolvedNote = note || defaultSyncNote(clean);
           syncDot.title = `Sync: ${clean}. ${resolvedNote}`;
           syncDot.setAttribute('aria-label', `Sync status: ${clean}`);
@@ -1684,7 +1704,7 @@
         if (!user || !syncUser || user.uid !== syncUser.uid) return;
         cloudRestFallbackActive = true;
         if (cloudRestPollTimer) return;
-        renderSyncStatus('SYNCED', note || 'Realtime listener is unreliable on this device; fallback cloud polling is active.');
+        renderSyncStatus('SYNCING', note || 'Realtime listener is unreliable on this device; fallback cloud polling is active.');
         const poll = async () => {
           if (!syncUser || user.uid !== syncUser.uid || !navigator.onLine || cloudRestPollInFlight) return;
           if (cloudUploadInFlight) return;
@@ -1933,7 +1953,7 @@
             state.updatedAt = now;
             pendingCloudSave = false;
             window.clearTimeout(syncSaveTimer);
-            renderSyncStatus('SYNCED', cloudRestFallbackActive ? `${note} Fallback cloud channel is active on this device.` : note);
+            renderSyncStatus(cloudRestFallbackActive ? 'SYNCING' : 'SYNCED', cloudRestFallbackActive ? `${note} Fallback cloud channel is active on this device.` : note);
           } else {
             state._sync = {
               ...normalizeSync(state._sync || {}),
@@ -2337,10 +2357,21 @@
           }).join('') : '<div class="today-empty-state">No visible zone entries yet. Use Quick Log or the central + to record the first piece of evidence.</div>';
         }
 
+        const dossier = state.codexSummary || {};
         if (todayCurrentSituation) {
-          const situation = state.codexSummary?.bulletSummary || state.codexSummary?.currentSituation || '';
+          const situation = String(dossier.currentSituation || '');
           todayCurrentSituation.textContent = situation || 'Awaiting GPT-generated current situation.';
           todayCurrentSituation.classList.toggle('empty', !situation.trim());
+        }
+        if (todayGptReflection) {
+          const reflection = String(dossier.reflection || '');
+          todayGptReflection.textContent = reflection || 'Awaiting GPT-generated reflection.';
+          todayGptReflection.classList.toggle('empty', !reflection.trim());
+        }
+        if (todayBulletSummary) {
+          const bulletSummary = String(dossier.bulletSummary || '');
+          todayBulletSummary.textContent = bulletSummary || 'Awaiting GPT bulletpoint summary.';
+          todayBulletSummary.classList.toggle('empty', !bulletSummary.trim());
         }
         setTodayQuickZone(selectedTodayQuickZone || 'head');
       }

@@ -13,6 +13,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebaseio.com wss://*.firebasedatabase.app; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none';" />
   <title>Personal Codex</title>
   <link rel="manifest" id="pwa-manifest-link" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/icon-192.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,12 +37,12 @@
     </div>
     <span class="hud-date" id="hud-date" aria-hidden="true">—</span>
     <div class="hud-actions">
-      <span class="sync-dot" id="sync-dot" aria-label="Sync status: local" title="Sync status: local" role="status"></span>
+      <span class="sync-dot" id="sync-dot" aria-label="Sync status: local" title="Sync status: local" role="status" aria-live="polite" aria-atomic="true"></span>
       <button class="btn-hud mobile-actions-toggle" id="btn-mobile-actions" type="button" aria-haspopup="dialog" aria-expanded="false">MENU</button>
       <button class="btn-hud" id="btn-copy" type="button">COPY</button>
       <button class="btn-hud" id="btn-paste" type="button">PASTE</button>
       <button class="btn-hud" id="btn-history" type="button">HISTORY</button>
-      <button class="btn-hud" id="btn-sync" type="button" title="Automatic Firebase sync status">SYNC: LOCAL</button>
+      <button class="btn-hud" id="btn-sync" type="button" title="Automatic Firebase sync status" aria-live="polite" aria-atomic="true">SYNC: LOCAL</button>
       <button class="btn-hud pwa-install-btn" id="btn-pwa-install" type="button" hidden>INSTALL</button>
       <button class="btn-hud subtle health-glyph" id="btn-health" type="button" aria-label="Open Codex Health" title="Codex Health">◌</button>
     </div>
@@ -77,7 +78,7 @@
         <button class="panel-close" type="button" data-sync-action="close" aria-label="Close sync panel">×</button>
       </div>
 
-      <div class="sync-status-card" id="sync-status-card">
+      <div class="sync-status-card" id="sync-status-card" role="status" aria-live="polite" aria-atomic="true">
         <strong id="sync-status-label">LOCAL</strong>
         <span id="sync-status-note">Local storage is active. Cloud sync is not connected.</span>
       </div>
@@ -118,40 +119,16 @@
 
       <div class="today-rings-row" id="today-rings-row" aria-label="Today zone status"></div>
 
-      <section class="today-quick-section" aria-label="Quick log">
-        <div class="today-section-head">
-          <span class="micro-label">Quick Log</span>
-          <button class="today-section-link" id="today-open-quick" type="button">All</button>
-        </div>
-        <div class="today-quick-row" id="today-quick-row"></div>
-        <div class="today-inline-entry" id="today-inline-entry" aria-label="Fast GPT-classified mobile entry">
-          <div class="today-inline-zones" id="today-inline-zones" aria-label="Legacy quick entry zone" hidden>
-            <button type="button" data-today-zone="head">Mind</button>
-            <button type="button" data-today-zone="torso">Rituals</button>
-            <button type="button" data-today-zone="arms">Craft</button>
-            <button type="button" data-today-zone="legs">Body</button>
-          </div>
-          <div class="today-inline-control">
-            <input class="today-quick-input" id="today-quick-input" type="text" autocomplete="off" inputmode="text" placeholder="Quick entry…" />
-            <button class="today-quick-send" id="today-quick-send" type="button" aria-label="Record quick entry">→</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="today-log-section" aria-label="Today's log">
-        <div class="today-section-head">
-          <span class="micro-label">Today's Log</span>
-          <button class="today-section-link" id="today-open-history" type="button">History</button>
-        </div>
-        <div class="today-entry-log" id="today-entry-log"></div>
-      </section>
-
-      <section class="today-gpt-card" aria-label="GPT current situation and reflection">
+      <section class="today-gpt-card" aria-label="GPT bullet summary, current situation and reflection">
         <div class="today-gpt-card-head">
           <div class="micro-label">Current Situation</div>
           <span>GPT Dossier</span>
         </div>
-        <div class="today-gpt-scroll" aria-label="Scrollable GPT current situation and reflection text">
+        <div class="today-gpt-scroll" aria-label="Scrollable GPT bullet summary, current situation and reflection text">
+          <article class="today-gpt-section today-gpt-summary-section">
+            <h3>Bullet Summary</h3>
+            <p id="today-bullet-summary">Awaiting GPT bulletpoint summary.</p>
+          </article>
           <article class="today-gpt-section">
             <h3>Current Situation</h3>
             <p id="today-current-situation">Awaiting GPT-generated current situation.</p>
@@ -162,6 +139,45 @@
           </article>
         </div>
       </section>
+
+      <section class="today-quick-section" aria-label="Quick log">
+        <div class="today-section-head">
+          <span class="micro-label">Quick Log</span>
+          <div class="today-section-actions">
+            <button class="today-collapse-toggle" id="today-toggle-quick" type="button" aria-expanded="true" aria-controls="today-quick-content">Hide</button>
+            <button class="today-section-link" id="today-open-quick" type="button">All</button>
+          </div>
+        </div>
+        <div class="today-collapsible-content" id="today-quick-content">
+          <div class="today-quick-row" id="today-quick-row"></div>
+          <div class="today-inline-entry" id="today-inline-entry" aria-label="Fast GPT-classified mobile entry">
+            <div class="today-inline-zones" id="today-inline-zones" aria-label="Legacy quick entry zone" hidden>
+              <button type="button" data-today-zone="head">Mind</button>
+              <button type="button" data-today-zone="torso">Rituals</button>
+              <button type="button" data-today-zone="arms">Craft</button>
+              <button type="button" data-today-zone="legs">Body</button>
+            </div>
+            <div class="today-inline-control">
+              <input class="today-quick-input" id="today-quick-input" type="text" autocomplete="off" inputmode="text" placeholder="Quick entry…" />
+              <button class="today-quick-send" id="today-quick-send" type="button" aria-label="Record quick entry">→</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="today-log-section" aria-label="Today's log">
+        <div class="today-section-head">
+          <span class="micro-label">Today's Log</span>
+          <div class="today-section-actions">
+            <button class="today-collapse-toggle" id="today-toggle-log" type="button" aria-expanded="true" aria-controls="today-log-content">Hide</button>
+            <button class="today-section-link" id="today-open-history" type="button">History</button>
+          </div>
+        </div>
+        <div class="today-collapsible-content" id="today-log-content">
+          <div class="today-entry-log" id="today-entry-log"></div>
+        </div>
+      </section>
+
     </section>
     <section class="left-readout" aria-label="Codex rating summary">
       <div class="verdict-label">Current Assessment</div>
@@ -571,6 +587,7 @@
 
       const STORAGE_KEY = 'personalCodex_v1';
       const DEVICE_ID_KEY = 'personalCodex_device_id';
+      const TODAY_COLLAPSE_KEY = 'personalCodex_today_collapsed_sections';
       const FIREBASE_SDK_VERSION = '10.12.5';
       const FIREBASE_CONFIG = Object.freeze({
         apiKey: 'AIzaSyDy6eYdO6dinq7V6kXy1jvDM2JthtqeBTw',
@@ -748,6 +765,7 @@
       let selectedDetail = null;
       let selectedHistoryDate = null;
       let selectedQuickActionIds = new Set();
+      let quickConfirmResolve = null;
       let saveTimer = null;
       let syncSaveTimer = null;
       let pendingCloudSave = false;
@@ -818,6 +836,10 @@
       const todayPrimaryAdd = $('#today-primary-add');
       const todayOpenQuick = $('#today-open-quick');
       const todayOpenHistory = $('#today-open-history');
+      const todayToggleQuick = $('#today-toggle-quick');
+      const todayToggleLog = $('#today-toggle-log');
+      const todayQuickContent = $('#today-quick-content');
+      const todayLogContent = $('#today-log-content');
       const todayInlineZones = $('#today-inline-zones');
       const todayQuickInput = $('#today-quick-input');
       const todayQuickSend = $('#today-quick-send');
@@ -836,6 +858,9 @@
       const quickConfirmCancel = $('#quick-confirm-cancel');
       const quickConfirmAccept = $('#quick-confirm-accept');
       const quickConfirmList = $('#quick-confirm-list');
+      const quickConfirmTitle = $('#quick-confirm-title');
+      const quickConfirmKicker = $('#quick-confirm-overlay .panel-kicker');
+      const quickConfirmCopy = $('#quick-confirm-overlay .quick-confirm-copy');
       const entryComposer = $('#entry-composer');
       const composerClose = $('#composer-close');
       const composerCancel = $('#composer-cancel');
@@ -1449,7 +1474,7 @@
           if (clean === 'TIMEOUT') syncDot.classList.add('sync-state-error');
           const resolvedNote = note || defaultSyncNote(clean);
           syncDot.title = `Sync: ${clean}. ${resolvedNote}`;
-          syncDot.setAttribute('aria-label', `Sync status: ${clean}`);
+          syncDot.setAttribute('aria-label', `Sync status: ${clean}. ${resolvedNote}`);
         }
         if (syncStatusLabel) syncStatusLabel.textContent = clean;
         if (syncStatusNote) syncStatusNote.textContent = note || defaultSyncNote(clean);
@@ -2315,12 +2340,59 @@
         return [...ranked, ...extras].slice(0, 12);
       }
 
+      function loadTodayCollapseState() {
+        const fallback = { quick: false, log: false };
+        try {
+          const parsed = JSON.parse(localStorage.getItem(TODAY_COLLAPSE_KEY) || '{}');
+          return {
+            quick: Boolean(parsed.quick),
+            log: Boolean(parsed.log)
+          };
+        } catch {
+          return fallback;
+        }
+      }
+
+      let todayCollapseState = loadTodayCollapseState();
+
+      function saveTodayCollapseState() {
+        try { localStorage.setItem(TODAY_COLLAPSE_KEY, JSON.stringify(todayCollapseState)); } catch {}
+      }
+
+      function syncTodaySectionCollapseUI() {
+        const pairs = [
+          { key: 'quick', toggle: todayToggleQuick, content: todayQuickContent, label: 'Quick Log' },
+          { key: 'log', toggle: todayToggleLog, content: todayLogContent, label: 'Today\'s Log' }
+        ];
+        pairs.forEach(({ key, toggle, content, label }) => {
+          const collapsed = Boolean(todayCollapseState[key]);
+          if (content) {
+            content.hidden = collapsed;
+            content.closest('section')?.classList.toggle('is-collapsed', collapsed);
+          }
+          if (toggle) {
+            toggle.textContent = collapsed ? 'Show' : 'Hide';
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            toggle.setAttribute('aria-label', `${collapsed ? 'Show' : 'Hide'} ${label}`);
+          }
+        });
+      }
+
+      function toggleTodaySection(sectionKey) {
+        if (!Object.prototype.hasOwnProperty.call(todayCollapseState, sectionKey)) return;
+        todayCollapseState = { ...todayCollapseState, [sectionKey]: !todayCollapseState[sectionKey] };
+        saveTodayCollapseState();
+        syncTodaySectionCollapseUI();
+        haptic(10);
+      }
+
       function renderMobileToday() {
         if (!todayView) return;
         const isMobile = isMobileViewport();
         todayView.hidden = !isMobile || activeMobileTab !== 'today';
         if (!isMobile) return;
 
+        syncTodaySectionCollapseUI();
         document.body.dataset.mobileTab = activeMobileTab;
         const todayRecords = totalRecordsForDay(todayKey());
         const subtitle = $('#today-mobile-subtitle');
@@ -3308,7 +3380,7 @@
         const normalisedImport = normalizeData(imported);
         const action = await showImportReview(imported, normalisedImport, issues);
         if (action === 'cancel') { showToast('PASTE CANCELLED'); return; }
-        applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
+        await applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
       }
 
       async function pasteData() {
@@ -3368,14 +3440,30 @@
         return payload?.zones || { head: payload?.head, torso: payload?.torso, arms: payload?.arms, legs: payload?.legs };
       }
 
+      function addEntryId(entries, item, context) {
+        if (!item?.id) return;
+        entries.set(item.id, { ...context, item });
+      }
+
+      function collectDailyLogEntryIds(entries, dailyLog) {
+        if (!dailyLog || typeof dailyLog !== 'object') return;
+        Object.entries(dailyLog).forEach(([dateKey, day]) => {
+          if (!day || typeof day !== 'object') return;
+          (Array.isArray(day.randomThoughts) ? day.randomThoughts : []).forEach(item => addEntryId(entries, item, { dateKey, type: 'Random Thought' }));
+          (Array.isArray(day.intakeEntries) ? day.intakeEntries : []).forEach(item => addEntryId(entries, item, { dateKey, type: 'Intake Entry' }));
+          (Array.isArray(day.looseReflections) ? day.looseReflections : []).forEach(item => addEntryId(entries, item, { dateKey, type: 'Private Reflection' }));
+        });
+      }
+
       function payloadEntriesById(payload) {
         const entries = new Map();
         const zones = payloadZoneSource(payload);
         ['head', 'torso', 'arms', 'legs'].forEach(zone => {
           (Array.isArray(zones?.[zone]?.items) ? zones[zone].items : []).forEach(item => {
-            if (item?.id) entries.set(item.id, { zone, item });
+            addEntryId(entries, item, { zone, type: 'Zone Entry' });
           });
         });
+        collectDailyLogEntryIds(entries, payload?.dailyLog);
         return entries;
       }
 
@@ -3383,9 +3471,10 @@
         const entries = new Map();
         ['head', 'torso', 'arms', 'legs'].forEach(zone => {
           (state.zones?.[zone]?.items || []).forEach(item => {
-            if (item?.id) entries.set(item.id, { zone, item });
+            addEntryId(entries, item, { zone, type: 'Zone Entry' });
           });
         });
+        collectDailyLogEntryIds(entries, state.dailyLog);
         return entries;
       }
 
@@ -3454,6 +3543,14 @@
 
         const incomingById = payloadEntriesById(payload);
         const localById = localEntriesById();
+        const missingLocalIds = [];
+        localById.forEach(({ type }, id) => {
+          if (!incomingById.has(id)) missingLocalIds.push({ id, type });
+        });
+        if (missingLocalIds.length) {
+          const missingTypes = [...new Set(missingLocalIds.map(entry => entry.type || 'record'))].slice(0, 4).join(', ');
+          issues.push(`${missingLocalIds.length} local record ID${missingLocalIds.length === 1 ? ' is' : 's are'} absent from the imported file${missingTypes ? ` (${missingTypes})` : ''}. Override may delete those records; merge preserves local records.`);
+        }
         const changedDates = [];
         incomingById.forEach(({ item }, id) => {
           const local = localById.get(id)?.item;
@@ -3530,7 +3627,7 @@
         const zoneEntries = countPayloadZoneEntries(payload);
         const randomThoughts = countPayloadRandomThoughts(payload);
         const privateReflections = countPayloadPrivateReflections(payload);
-        const totalRecords = zoneEntries + randomThoughts + privateReflections;
+        const totalRecords = countPayloadEntries(payload);
         const generatedAt = payload?.codexSummary?.generatedAt || payload?.summary?.generatedAt || payload?.gptRefinements?.lastAnalysedAt || null;
         return [
           ['Schema', payload?.schemaVersion || payload?.version || 'Missing', payload?.schemaName || 'No schema name'],
@@ -3735,17 +3832,23 @@
         const currentDays = Object.keys(state.dailyLog || {}).length;
         const incomingDays = Object.keys(normalised?.dailyLog || {}).length;
         const currentRecords = Object.values(state.zones || {}).reduce((total, zone) => total + (Array.isArray(zone.items) ? zone.items.length : 0), 0)
-          + Object.values(state.dailyLog || {}).reduce((total, day) => total + (Array.isArray(day?.randomThoughts) ? day.randomThoughts.length : 0) + (Array.isArray(day?.looseReflections) ? day.looseReflections.length : 0), 0);
+          + Object.values(state.dailyLog || {}).reduce((total, day) => total
+            + (Array.isArray(day?.randomThoughts) ? day.randomThoughts.length : 0)
+            + (Array.isArray(day?.intakeEntries) ? day.intakeEntries.length : 0)
+            + (Array.isArray(day?.looseReflections) ? day.looseReflections.length : 0), 0);
         const incomingRecords = Object.values(normalised?.zones || {}).reduce((total, zone) => total + (Array.isArray(zone.items) ? zone.items.length : 0), 0)
-          + Object.values(normalised?.dailyLog || {}).reduce((total, day) => total + (Array.isArray(day?.randomThoughts) ? day.randomThoughts.length : 0) + (Array.isArray(day?.looseReflections) ? day.looseReflections.length : 0), 0);
+          + Object.values(normalised?.dailyLog || {}).reduce((total, day) => total
+            + (Array.isArray(day?.randomThoughts) ? day.randomThoughts.length : 0)
+            + (Array.isArray(day?.intakeEntries) ? day.intakeEntries.length : 0)
+            + (Array.isArray(day?.looseReflections) ? day.looseReflections.length : 0), 0);
         return (currentDays > 0 && incomingDays < currentDays) || (currentRecords > 0 && incomingRecords < currentRecords);
       }
 
-      function applyImportedState(imported, normalised, mode, issues) {
+      async function applyImportedState(imported, normalised, mode, issues) {
         if (mode === 'override' && overrideWouldReduceHistory(normalised)) {
           const currentDays = Object.keys(state.dailyLog || {}).length;
           const incomingDays = Object.keys(normalised?.dailyLog || {}).length;
-          const confirmed = window.confirm(`Override will replace ${currentDays} local recorded day${currentDays === 1 ? '' : 's'} with ${incomingDays} imported day${incomingDays === 1 ? '' : 's'}. Continue only if this is intentional.`);
+          const confirmed = await requestOverrideReductionConfirm(currentDays, incomingDays);
           if (!confirmed) { showToast('OVERRIDE CANCELLED'); return; }
         }
         updateTodayLog();
@@ -3779,7 +3882,7 @@
             const normalisedImport = normalizeData(imported);
             const action = await showImportReview(imported, normalisedImport, issues);
             if (action === 'cancel') { showToast('IMPORT CANCELLED'); return; }
-            applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
+            await applyImportedState(imported, normalisedImport, action === 'override' ? 'override' : 'merge', issues);
           } catch (err) {
             console.warn('Personal Codex: failed import.', err);
             showToast('INVALID BACKUP');
@@ -3825,6 +3928,19 @@
         }
       }
 
+      function setupServiceWorkerUpdateListener() {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.addEventListener('message', event => {
+          if (event?.data?.type !== 'SW_UPDATED') return;
+          showToast('APP UPDATED', {
+            actionLabel: 'RELOAD',
+            duration: 8000,
+            onAction: () => window.location.reload()
+          });
+          renderPwaStatus();
+        });
+      }
+
       function isStandaloneMode() {
         return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
       }
@@ -3866,6 +3982,7 @@
 
       function setupPwaPreparation() {
         createPwaManifestLink();
+        setupServiceWorkerUpdateListener();
         registerServiceWorker().then(renderPwaStatus);
         window.addEventListener('beforeinstallprompt', event => {
           event.preventDefault();
@@ -4308,29 +4425,97 @@
         return [...selectedQuickActionIds].map(quickActionById).filter(Boolean);
       }
 
-      function openQuickConfirm() {
-        const selected = selectedQuickActions();
-        if (!selected.length) { showToast('NO ACTIONS SELECTED'); return; }
-        quickConfirmList.innerHTML = selected.map(action => {
-          const zoneLabel = ENTRY_CATALOG[action.zone]?.label || action.zone;
-          const already = quickActionRecordedToday(action);
-          return `
-            <div class="quick-confirm-item">
-              <strong>${escapeHTML(action.title)}</strong>
-              <span>${escapeHTML(zoneLabel)} · ${escapeHTML(action.subsection)}${already ? ' · already recorded today' : ''}</span>
-            </div>
-          `;
-        }).join('');
-        quickConfirmOverlay.hidden = false;
-        updateEffectsPaused();
-        openModalLayer(quickConfirmOverlay, '.quick-confirm-panel', quickConfirmAccept);
+      function setQuickConfirmContent({ kicker, title, copy, listHtml, cancelLabel = 'Cancel', acceptLabel = 'Accept' }) {
+        if (quickConfirmOverlay && title) quickConfirmOverlay.setAttribute('aria-label', title);
+        if (quickConfirmKicker) quickConfirmKicker.textContent = kicker;
+        if (quickConfirmTitle) quickConfirmTitle.textContent = title;
+        if (quickConfirmCopy) quickConfirmCopy.textContent = copy;
+        if (quickConfirmList) quickConfirmList.innerHTML = listHtml || '';
+        if (quickConfirmCancel) quickConfirmCancel.textContent = cancelLabel;
+        if (quickConfirmAccept) quickConfirmAccept.textContent = acceptLabel;
       }
 
-      function closeQuickConfirm() {
+      function openQuickConfirmOverlay(focusTarget = quickConfirmAccept) {
+        if (!quickConfirmOverlay) return;
+        quickConfirmOverlay.hidden = false;
+        updateEffectsPaused();
+        openModalLayer(quickConfirmOverlay, '.quick-confirm-panel', focusTarget || quickConfirmAccept);
+      }
+
+      function hideQuickConfirmOverlay() {
         if (!quickConfirmOverlay || quickConfirmOverlay.hidden) return;
         closeModalLayer(quickConfirmOverlay);
         quickConfirmOverlay.hidden = true;
         updateEffectsPaused();
+      }
+
+      function requestOverrideReductionConfirm(currentDays, incomingDays) {
+        if (!quickConfirmOverlay) return Promise.resolve(false);
+        return new Promise(resolve => {
+          quickConfirmResolve = resolve;
+          const currentDayLabel = `${currentDays} local recorded day${currentDays === 1 ? '' : 's'}`;
+          const incomingDayLabel = `${incomingDays} imported day${incomingDays === 1 ? '' : 's'}`;
+          setQuickConfirmContent({
+            kicker: 'Confirm Override',
+            title: 'Replace Local History?',
+            copy: 'Override will replace local Codex history with the imported file. Continue only if this is intentional.',
+            listHtml: `
+              <div class="quick-confirm-item">
+                <strong>${escapeHTML(currentDayLabel)}</strong>
+                <span>Currently stored on this device</span>
+              </div>
+              <div class="quick-confirm-item">
+                <strong>${escapeHTML(incomingDayLabel)}</strong>
+                <span>Detected in the imported file</span>
+              </div>
+            `,
+            cancelLabel: 'Cancel Override',
+            acceptLabel: 'Replace Local Data'
+          });
+          openQuickConfirmOverlay(quickConfirmCancel || quickConfirmAccept);
+        });
+      }
+
+      function handleQuickConfirmAccept() {
+        if (quickConfirmResolve) {
+          const resolve = quickConfirmResolve;
+          quickConfirmResolve = null;
+          hideQuickConfirmOverlay();
+          resolve(true);
+          return;
+        }
+        applyQuickActions();
+      }
+
+      function openQuickConfirm() {
+        const selected = selectedQuickActions();
+        if (!selected.length) { showToast('NO ACTIONS SELECTED'); return; }
+        quickConfirmResolve = null;
+        setQuickConfirmContent({
+          kicker: 'Confirm Evidence',
+          title: 'Apply Entries?',
+          copy: 'These entries will be recorded separately in today’s Codex.',
+          listHtml: selected.map(action => {
+            const zoneLabel = ENTRY_CATALOG[action.zone]?.label || action.zone;
+            const already = quickActionRecordedToday(action);
+            return `
+              <div class="quick-confirm-item">
+                <strong>${escapeHTML(action.title)}</strong>
+                <span>${escapeHTML(zoneLabel)} · ${escapeHTML(action.subsection)}${already ? ' · already recorded today' : ''}</span>
+              </div>
+            `;
+          }).join(''),
+          cancelLabel: 'Cancel',
+          acceptLabel: 'Accept'
+        });
+        openQuickConfirmOverlay(quickConfirmAccept);
+      }
+
+      function closeQuickConfirm() {
+        const resolve = quickConfirmResolve;
+        quickConfirmResolve = null;
+        hideQuickConfirmOverlay();
+        if (resolve) resolve(false);
       }
 
       function addQuickActionEntry(action) {
@@ -4411,6 +4596,8 @@
         todayPrimaryAdd?.addEventListener('click', () => { haptic(18); openComposer(activeZone || 'head'); });
         todayOpenQuick?.addEventListener('click', openQuickActions);
         todayOpenHistory?.addEventListener('click', openHistorySection);
+        todayToggleQuick?.addEventListener('click', () => toggleTodaySection('quick'));
+        todayToggleLog?.addEventListener('click', () => toggleTodaySection('log'));
         mobileBottomNav?.addEventListener('click', event => {
           const actionBtn = event.target.closest('[data-mobile-action]');
           if (actionBtn?.dataset.mobileAction === 'compose') { haptic(18); openComposer(activeZone || (activeMobileTab !== 'today' ? activeMobileTab : selectedTodayQuickZone || 'head')); return; }
@@ -4450,7 +4637,7 @@
         });
         quickConfirmClose?.addEventListener('click', closeQuickConfirm);
         quickConfirmCancel?.addEventListener('click', closeQuickConfirm);
-        quickConfirmAccept?.addEventListener('click', applyQuickActions);
+        quickConfirmAccept?.addEventListener('click', handleQuickConfirmAccept);
         quickConfirmOverlay?.addEventListener('click', event => { if (event.target.matches('[data-close-quick-confirm]')) closeQuickConfirm(); });
 
         composerClose.addEventListener('click', () => closeComposer(false));

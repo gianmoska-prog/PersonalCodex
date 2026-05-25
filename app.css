@@ -1865,6 +1865,7 @@
       #body-svg { width: min(54vw, 390px); }
     }
 
+    /* MOBILE FOUNDATION — consolidated early mobile layout and detail-drawer rules */
     @media (max-width: 700px) {
       :root { --header-h: 78px; --footer-h: 82px; --panel-width: 100vw; }
       body { overflow: hidden; }
@@ -1968,11 +1969,6 @@
       }
       .entry-type-grid { grid-template-columns: repeat(2, 1fr); }
       .entry-type-card { min-height: 84px; padding: 11px 10px; }
-    }
-
-
-
-    @media (max-width: 700px) {
       .detail-panel {
         top: auto;
         left: 0;
@@ -5675,8 +5671,8 @@
 
   .today-gpt-card {
     padding: 16px 16px;
-    min-height: clamp(320px, 44vh, 470px);
-    max-height: min(62vh, 560px);
+    min-height: clamp(320px, 44dvh, 470px);
+    max-height: min(62dvh, 560px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -6313,15 +6309,15 @@
   letter-spacing: .025em;
 }
 
-.composer-classification-controls,
-.composer-subsection-label,
-#composer-subsections[hidden] {
+/* Patch 57 — keep the intake composer classification-free without globally suppressing future controls. */
+#entry-composer .composer-classification-controls,
+#entry-composer .composer-subsection-label,
+#entry-composer #composer-subsections[hidden] {
   display: none !important;
 }
 
-/* Patch 52 — keep zone selector hidden even when keyboard-open forces entry-type-grid visible */
-body.keyboard-open .composer-classification-controls,
-body .composer-classification-controls {
+/* Patch 57 — guard against keyboard-open entry-type-grid overrides revealing the hidden intake selector. */
+body.keyboard-open #entry-composer .composer-classification-controls {
   display: none !important;
 }
 
@@ -6354,13 +6350,148 @@ body .composer-classification-controls {
 }
 
 
-/* Patch 53 — larger mobile GPT dossier card */
-@media (max-width: 380px) {
+/* Patch 54 — mobile GPT dossier card viewport safety */
+@media (max-width: 430px) {
   .today-gpt-card {
     min-height: 300px;
-    max-height: 64vh;
+    max-height: 64dvh;
   }
   .today-gpt-scroll {
     min-height: 210px;
+  }
+}
+
+/* MOBILE TODAY REFINEMENTS — consolidated Patch 58, Patch 60 and Patch 66 rules */
+@media (max-width: 700px) {
+  /* GPT dossier scroll affordance */
+  .today-gpt-card {
+    position: relative;
+  }
+
+  .today-gpt-card::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    height: 32px;
+    pointer-events: none;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    background: linear-gradient(to bottom, rgba(5, 13, 26, 0), rgba(5, 13, 26, .78));
+    opacity: .82;
+  }
+
+  .today-gpt-scroll {
+    padding-bottom: 28px;
+  }
+
+  .today-gpt-section:last-child {
+    padding-bottom: 14px;
+  }
+
+  /* Mobile readability and touch-target refinement */
+  .ring-label,
+  .today-ring small,
+  .today-entry-zone {
+    font-size: .65rem;
+  }
+
+  .today-ring small {
+    color: rgba(245, 240, 232, .56);
+  }
+
+  .today-section-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+    touch-action: manipulation;
+  }
+
+  .today-section-head {
+    padding-top: 9px;
+  }
+
+  /* Optional mobile Today section collapse */
+  .today-section-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+
+  .today-collapse-toggle {
+    appearance: none;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: rgba(245, 240, 232, .54);
+    font-family: var(--font-display);
+    font-size: .61rem;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+    touch-action: manipulation;
+  }
+
+  .today-collapsible-content[hidden] {
+    display: none !important;
+  }
+
+  .today-quick-section.is-collapsed,
+  .today-log-section.is-collapsed {
+    padding-bottom: 9px;
+  }
+}
+
+/* Patch 68 — reduced-motion completion.
+   Keep state changes functional, but remove decorative motion and long transition movement for users who request reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html,
+  html:focus-within {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .bg-blob,
+  .figure-aura,
+  .zone-tapped,
+  .radar-ping,
+  .sync-dot.sync-state-syncing,
+  .quick-action-card.is-selected,
+  .entry-row,
+  .item-row {
+    animation: none !important;
+  }
+
+  .hud-header,
+  .hud-footer,
+  .side-panel,
+  .home-panel,
+  .detail-panel,
+  .entry-detail .detail-backdrop,
+  .history-panel,
+  .health-panel,
+  .import-review-panel,
+  .composer-panel,
+  .toast,
+  .today-gpt-card::after {
+    transition: none !important;
   }
 }

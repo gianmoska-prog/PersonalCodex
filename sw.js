@@ -1,4 +1,4 @@
-const CACHE_NAME = 'personal-codex-pwa-v53';
+const CACHE_NAME = 'personal-codex-pwa-v68';
 const APP_SHELL = [
   './',
   './index.html',
@@ -20,8 +20,18 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
-      .then(() => self.clients.claim())
+      .then(keys => {
+        const oldKeys = keys.filter(key => key !== CACHE_NAME);
+        return Promise.all(oldKeys.map(key => caches.delete(key))).then(() => oldKeys.length);
+      })
+      .then(deletedCount => self.clients.claim().then(() => deletedCount))
+      .then(deletedCount => {
+        if (!deletedCount) return null;
+        return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+          .then(clients => clients.forEach(client => {
+            client.postMessage({ type: 'SW_UPDATED', cacheName: CACHE_NAME });
+          }));
+      })
   );
 });
 
@@ -36,6 +46,19 @@ function cacheFirstWithNetworkFill(request, fallbackResponse = null) {
       return response;
     }).catch(() => fallbackResponse || new Response('', { status: 408, statusText: 'Offline cache miss' }));
   });
+}
+
+function networkFirstWithCacheFallback(request, fallbackResponse = null) {
+  return fetch(request).then(response => {
+    if (response && response.ok) {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    }
+    return response;
+  }).catch(() => caches.match(request).then(cached => {
+    if (cached) return cached;
+    return fallbackResponse || new Response('', { status: 408, statusText: 'Offline cache miss' });
+  }));
 }
 
 self.addEventListener('fetch', event => {
@@ -62,7 +85,7 @@ self.addEventListener('fetch', event => {
   }
 
   if (url.hostname === 'www.gstatic.com' && url.pathname.includes('/firebasejs/')) {
-    event.respondWith(cacheFirstWithNetworkFill(request));
+    event.respondWith(networkFirstWithCacheFallback(request));
     return;
   }
 

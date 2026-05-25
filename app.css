@@ -5701,7 +5701,8 @@
   }
 
   .today-gpt-scroll {
-    min-height: 0;
+    flex: 1;
+    min-height: 60px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -5747,7 +5748,7 @@
   }
 
   .today-gpt-card p.empty {
-    color: rgba(245, 240, 232, .34);
+    color: rgba(245, 240, 232, .52);
     font-style: italic;
   }
 }
@@ -6314,6 +6315,12 @@
 .composer-classification-controls,
 .composer-subsection-label,
 #composer-subsections[hidden] {
+  display: none !important;
+}
+
+/* Patch 52 — keep zone selector hidden even when keyboard-open forces entry-type-grid visible */
+body.keyboard-open .composer-classification-controls,
+body .composer-classification-controls {
   display: none !important;
 }
 

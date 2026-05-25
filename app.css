@@ -5674,8 +5674,9 @@
   }
 
   .today-gpt-card {
-    padding: 13px 14px;
-    max-height: min(44vh, 390px);
+    padding: 16px 16px;
+    min-height: clamp(320px, 44vh, 470px);
+    max-height: min(62vh, 560px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -5701,12 +5702,12 @@
   }
 
   .today-gpt-scroll {
-    flex: 1;
-    min-height: 60px;
+    flex: 1 1 auto;
+    min-height: 230px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 10px 2px 2px;
+    padding: 12px 2px 4px;
     scrollbar-width: thin;
     scrollbar-color: rgba(245,240,232,.18) transparent;
   }
@@ -5716,9 +5717,9 @@
 
   .today-gpt-section {
     display: grid;
-    gap: 6px;
-    padding: 0 0 13px;
-    margin: 0 0 13px;
+    gap: 8px;
+    padding: 0 0 15px;
+    margin: 0 0 15px;
     border-bottom: 1px solid rgba(245, 240, 232, .075);
   }
 
@@ -6349,5 +6350,17 @@ body .composer-classification-controls {
   .composer-intake-note {
     font-size: .92rem;
     color: rgba(245, 240, 232, .48);
+  }
+}
+
+
+/* Patch 53 — larger mobile GPT dossier card */
+@media (max-width: 380px) {
+  .today-gpt-card {
+    min-height: 300px;
+    max-height: 64vh;
+  }
+  .today-gpt-scroll {
+    min-height: 210px;
   }
 }

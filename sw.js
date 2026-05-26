@@ -1,9 +1,13 @@
-const CACHE_NAME = 'personal-codex-pwa-v68';
+const CACHE_NAME = 'personal-codex-pwa-v69';
 const APP_SHELL = [
   './',
   './index.html',
   './app.css',
   './manifest.webmanifest',
+  './assets/icons/favicon.svg',
+  './assets/icons/favicon-32.png',
+  './assets/icons/favicon.ico',
+  './assets/icons/apple-touch-icon.png',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/maskable-512.png'
